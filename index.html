@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Australian R&amp;D Intelligent Directory</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#f6f8fb; --page-edge:#eaeef5; --surface:#ffffff; --canvas:#f2f4f9;
+    --border:#d8dee8; --border-strong:#b9c2d2;
+    --ink:#2f3542; --ink-secondary:#4b5262; --ink-muted:#667085;
+    --brand:#224b91; --brand-strong:#0f2d52; --brand-tint:#e8edf7;
+    --plum:#8b1b61; --plum-strong:#631244; --plum-tint:#f6e8f0;
+    --pill-secondary:#bfe3e6; --pill-secondary-ink:#0f2d52;
+    --accent:var(--plum); --accent-strong:var(--plum-strong); --accent-tint:var(--plum-tint);
+    --group-performer:#2a78d6; --group-performer-ink:#ffffff;
+    --group-infrastructure:#1baf7a; --group-infrastructure-ink:#07241a;
+    --group-industry:#eb6834; --group-industry-ink:#ffffff;
+    --group-concept:#5b6472; --group-concept-ink:#ffffff;
+    --edge:#aab2c0; --edge-strong:#5b6472;
+    --status-good:#0ca30c; --status-warning:#a9720a; --status-serious:#c15a2e; --status-critical:#d03b3b;
+    --font-display:"Rubik", "Segoe UI", system-ui, sans-serif;
+    --font-body:"Rubik", "Segoe UI", system-ui, sans-serif;
+    --font-mono:"IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --shadow-1:0 1px 2px rgba(15,45,82,0.07), 0 1px 1px rgba(15,45,82,0.05);
+    --shadow-2:0 10px 30px rgba(15,45,82,0.16), 0 2px 8px rgba(15,45,82,0.09);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --page-edge:#0a0d12; --surface:#151b23; --canvas:#10151c;
+      --border:#262e3a; --border-strong:#34404f;
+      --ink:#eef1f6; --ink-secondary:#b7c0cd; --ink-muted:#7c8697;
+      --brand:#7fa6e0; --brand-strong:#a9c4ec; --brand-tint:rgba(127,166,224,0.16);
+      --plum:#e08bc0; --plum-strong:#f0aed8; --plum-tint:rgba(224,139,192,0.16);
+      --pill-secondary:#264653; --pill-secondary-ink:#bfe3e6;
+      --accent:var(--plum); --accent-strong:var(--plum-strong); --accent-tint:var(--plum-tint);
+      --group-performer:#3987e5; --group-performer-ink:#ffffff;
+      --group-infrastructure:#199e70; --group-infrastructure-ink:#eafff5;
+      --group-industry:#d95926; --group-industry-ink:#ffffff;
+      --group-concept:#9aa5b1; --group-concept-ink:#12161c;
+      --edge:#3a4351; --edge-strong:#8b93a3;
+      --shadow-1:0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25);
+      --shadow-2:0 12px 34px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --page-edge:#0a0d12; --surface:#151b23; --canvas:#10151c;
+    --border:#262e3a; --border-strong:#34404f;
+    --ink:#eef1f6; --ink-secondary:#b7c0cd; --ink-muted:#7c8697;
+    --brand:#7fa6e0; --brand-strong:#a9c4ec; --brand-tint:rgba(127,166,224,0.16);
+    --plum:#e08bc0; --plum-strong:#f0aed8; --plum-tint:rgba(224,139,192,0.16);
+    --pill-secondary:#264653; --pill-secondary-ink:#bfe3e6;
+    --accent:var(--plum); --accent-strong:var(--plum-strong); --accent-tint:var(--plum-tint);
+    --group-performer:#3987e5; --group-performer-ink:#ffffff;
+    --group-infrastructure:#199e70; --group-infrastructure-ink:#eafff5;
+    --group-industry:#d95926; --group-industry-ink:#ffffff;
+    --group-concept:#9aa5b1; --group-concept-ink:#12161c;
+    --edge:#3a4351; --edge-strong:#8b93a3;
+    --shadow-1:0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25);
+    --shadow-2:0 12px 34px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--page-edge); color:var(--ink);
+    font-family:var(--font-body); -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:var(--font-display); text-wrap:balance; margin:0;}
+  button{font-family:inherit;}
+  ::selection{background:var(--brand-tint);}
+
+  .app{ min-height:100%; display:flex; flex-direction:column; background:var(--bg); }
+
+  /* ---------------- Topbar ---------------- */
+  .topbar{
+    display:flex; align-items:center; gap:14px; padding:10px 18px;
+    background:
+      radial-gradient(220px 120px at 88% -40%, var(--plum-tint) 0%, transparent 70%),
+      radial-gradient(280px 140px at 102% 120%, var(--brand-tint) 0%, transparent 70%),
+      var(--surface);
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:40;
+  }
+  .rail-toggle{
+    display:none; width:36px; height:36px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); color:var(--ink-secondary); cursor:pointer; flex:none;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; flex:none; }
+  .brand-mark{
+    width:38px; height:38px; border-radius:11px; background:var(--brand-strong);
+    display:flex; align-items:center; justify-content:center; flex:none; overflow:hidden;
+  }
+  .brand-mark svg{ width:26px; height:26px; display:block; }
+  .brand-word{ display:flex; flex-direction:column; line-height:1.15; }
+  .brand-word .title{ font-family:var(--font-display); font-weight:700; font-size:16.5px; color:var(--ink); white-space:nowrap; }
+  .brand-word .sub{ font-size:11.5px; color:var(--ink-muted); white-space:nowrap; }
+  .searchbar{ position:relative; flex:1 1 auto; min-width:160px; max-width:560px; }
+  .searchbar-field{
+    width:100%; padding:9px 14px; border-radius:9px; border:1px solid var(--border);
+    background:var(--canvas); color:var(--ink); font-size:13.5px; outline:none;
+  }
+  .searchbar-field:focus{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-tint); }
+  .searchbar-menu{
+    position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--surface);
+    border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-2);
+    max-height:360px; overflow:auto; z-index:50; padding:6px;
+  }
+  .searchbar-menu button{
+    display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%;
+    text-align:left; padding:8px 10px; border-radius:7px; border:none; background:none;
+    cursor:pointer; color:var(--ink);
+  }
+  .searchbar-menu button:hover{ background:var(--brand-tint); }
+  .searchbar-menu .r-name{ font-weight:600; font-size:13px; }
+  .searchbar-menu .r-meta{ font-size:11.5px; color:var(--ink-muted); }
+  .searchbar-menu .r-empty{ padding:14px 10px; color:var(--ink-muted); font-size:12.5px; }
+  .demo-badge{
+    flex:none; font-size:11px; font-weight:600; color:var(--accent-strong); background:var(--accent-tint);
+    border:1px solid var(--accent); border-radius:999px; padding:5px 11px; white-space:nowrap;
+  }
+  .icon-btn{
+    flex:none; display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px;
+    border:1px solid transparent; background:var(--pill-secondary); color:var(--pill-secondary-ink);
+    font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .icon-btn:hover{ filter:brightness(0.96); }
+  .icon-btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; }
+  .icon-btn.primary:hover{ background:var(--brand-strong); filter:none; }
+  .count-badge{
+    background:var(--brand); color:#fff; border-radius:999px; font-size:10.5px; font-weight:700;
+    padding:1px 6px; min-width:16px; text-align:center;
+  }
+  .theme-btn{
+    flex:none; width:36px; height:36px; border-radius:9px; border:1px solid var(--border);
+    background:var(--surface); color:var(--ink-secondary); cursor:pointer;
+  }
+  .theme-btn svg{ width:17px; height:17px; }
+
+  /* ---------------- Tab bar ---------------- */
+  .tabbar{
+    display:flex; gap:2px; padding:0 18px; background:var(--surface); border-bottom:1px solid var(--border);
+    overflow-x:auto;
+  }
+  .tab-btn{
+    padding:11px 14px; border:none; background:none; color:var(--ink-muted); font-size:13px;
+    font-weight:600; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap;
+  }
+  .tab-btn:hover{ color:var(--ink); }
+  .tab-btn[aria-pressed="true"]{ color:var(--brand); border-bottom-color:var(--brand); }
+
+  /* ---------------- Views shell ---------------- */
+  .views{ flex:1; position:relative; overflow:hidden; }
+  .view{ position:absolute; inset:0; overflow:auto; padding:22px; }
+  .view-head{ max-width:1180px; margin:0 auto 18px; }
+  .view-inner{ max-width:1180px; margin:0 auto; }
+  .view-title{ font-size:22px; font-weight:700; }
+  .view-subtitle{ margin-top:6px; color:var(--ink-secondary); font-size:13.5px; max-width:760px; }
+  .data-notice{
+    margin-top:12px; display:inline-flex; align-items:center; gap:7px; font-size:11.5px;
+    color:var(--ink-muted); background:var(--canvas); border:1px solid var(--border); border-radius:8px; padding:6px 10px;
+  }
+
+  /* ---------------- Overview ---------------- */
+  .quick-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px; }
+  .quick-card{
+    text-align:left; padding:16px; border-radius:14px; border:1px solid var(--border); background:var(--surface);
+    cursor:pointer; box-shadow:var(--shadow-1); display:flex; flex-direction:column; gap:6px;
+  }
+  .quick-card:hover{ border-color:var(--brand); box-shadow:var(--shadow-2); transform:translateY(-1px); }
+  .quick-card .qc-title{ font-weight:700; font-size:14px; }
+  .quick-card .qc-desc{ font-size:12px; color:var(--ink-muted); }
+  .metric-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-top:22px; }
+  .metric-card{
+    padding:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow-1);
+  }
+  .metric-card .m-value{ font-family:var(--font-mono); font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .metric-card .m-label{ font-size:11.5px; color:var(--ink-muted); margin-top:4px; }
+  .section-label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-muted); margin:26px 0 10px; }
+
+  /* ---------------- Directory ---------------- */
+  .directory-layout{ display:grid; grid-template-columns:250px 1fr; gap:18px; align-items:start; }
+  .filter-panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px;
+    position:sticky; top:0; display:flex; flex-direction:column; gap:16px;
+  }
+  .filter-group h4{ font-size:11.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-muted); margin:0 0 8px; }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:999px;
+    border:1px solid var(--border); background:var(--canvas); color:var(--ink-secondary);
+    font-size:11.5px; cursor:pointer; user-select:none;
+  }
+  .chip[aria-pressed="true"]{ background:var(--brand); border-color:var(--brand); color:#fff; }
+  .chip .dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+  .result-count{ font-size:12.5px; color:var(--ink-muted); margin-bottom:10px; }
+  .result-list{ display:flex; flex-direction:column; gap:10px; }
+  .result-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px;
+    box-shadow:var(--shadow-1);
+  }
+  .rc-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .rc-name{ font-weight:700; font-size:14.5px; }
+  .rc-name-btn{
+    font-weight:700; font-size:14.5px; font-family:inherit; color:var(--ink); background:none; border:none;
+    padding:0; text-align:left; cursor:pointer;
+  }
+  .rc-name-btn:hover, .rc-name-btn:focus-visible{ color:var(--brand); text-decoration:underline; }
+  .rc-type-badge{
+    display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.04em; padding:3px 8px; border-radius:999px; color:#fff; flex:none;
+  }
+  .rc-meta-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:6px; font-size:11.5px; color:var(--ink-muted); }
+  .rc-tags{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .tag-pill{ font-size:10.5px; background:var(--canvas); border:1px solid var(--border); color:var(--ink-secondary); padding:2px 8px; border-radius:999px; }
+  .rc-evidence{ margin-top:9px; font-size:12px; color:var(--ink-secondary); border-left:2px solid var(--border-strong); padding-left:9px; }
+  .rc-bottom{ display:flex; align-items:center; justify-content:space-between; margin-top:11px; gap:8px; flex-wrap:wrap; }
+  .rc-actions{ display:flex; gap:8px; }
+  .btn-mini{
+    font-size:11.5px; font-weight:600; padding:6px 12px; border-radius:999px; border:1px solid transparent;
+    background:var(--pill-secondary); color:var(--pill-secondary-ink); cursor:pointer;
+  }
+  .btn-mini:hover{ filter:brightness(0.96); }
+  .btn-mini.on{ background:var(--brand); border-color:var(--brand); color:#fff; }
+  .entity-link{ color:var(--brand-strong); text-decoration:none; font-weight:600; }
+  .entity-link:hover{ text-decoration:underline; }
+  .why-btn{
+    width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--canvas);
+    color:var(--ink-muted); font-size:11px; font-weight:700; cursor:pointer; flex:none; line-height:1;
+  }
+
+  /* ---------------- confidence badge ---------------- */
+  .confidence{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; }
+  .confidence .dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+  .confidence.verified .dot{ background:var(--status-good); }
+  .confidence.public-source .dot{ background:var(--ink-muted); }
+  .confidence.inferred .dot{ background:var(--status-warning); }
+  .confidence.needs-review .dot{ background:var(--status-serious); }
+  .confidence.stale .dot{ background:var(--status-critical); }
+
+  /* ---------------- Network view ---------------- */
+  .network-layout{ display:grid; grid-template-columns:250px 1fr; gap:18px; height:calc(100vh - 190px); min-height:520px; }
+  .canvas-wrap{
+    position:relative; border-radius:14px; border:1px solid var(--border); background:var(--canvas); overflow:hidden;
+  }
+  .canvas-wrap svg{ width:100%; height:100%; display:block; cursor:grab; }
+  .canvas-wrap svg.panning{ cursor:grabbing; }
+  .hop-toggle{ display:flex; gap:4px; }
+  .segmented{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .segmented button{
+    border:none; background:var(--surface); color:var(--ink-secondary); font-size:11.5px; font-weight:600;
+    padding:6px 11px; cursor:pointer; border-right:1px solid var(--border);
+  }
+  .segmented button:last-child{ border-right:none; }
+  .segmented button[aria-pressed="true"]{ background:var(--brand); color:#fff; }
+  .net-toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .zoom-controls{
+    position:absolute; right:14px; bottom:14px; display:flex; flex-direction:column; gap:6px; z-index:5;
+  }
+  .zoom-controls button{
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--surface);
+    color:var(--ink-secondary); cursor:pointer; font-size:15px; box-shadow:var(--shadow-1);
+  }
+  .net-hint{
+    position:absolute; left:14px; bottom:14px; font-size:11px; color:var(--ink-muted); background:var(--surface);
+    border:1px solid var(--border); border-radius:8px; padding:5px 9px;
+  }
+  .net-actions{ position:absolute; left:14px; top:14px; display:flex; gap:8px; z-index:5; flex-wrap:wrap; max-width:70%; }
+  .explain-banner{
+    position:absolute; left:50%; top:14px; transform:translateX(-50%); z-index:6; max-width:80%;
+    background:var(--plum); color:#fff; font-size:12px; font-weight:600; padding:7px 14px; border-radius:999px;
+    box-shadow:var(--shadow-1); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #explainBtn[aria-pressed="true"]{ background:var(--plum); border-color:var(--plum); color:#fff; }
+  .node-group{ cursor:pointer; }
+  .node-group .halo{ opacity:0; transition:opacity .15s; }
+  .node-group.selected .halo{ opacity:0.28; }
+  .node-group.dimmed{ opacity:0.22; }
+  .node-group.path-hi .core{ stroke:var(--accent); stroke-width:3px; }
+  .label-text{ font-family:var(--font-body); font-weight:600; fill:var(--ink); }
+  .sub-text{ font-family:var(--font-body); fill:var(--ink-muted); }
+  .label-bg{ fill:var(--surface); opacity:0.92; }
+  .hidden-el{ display:none; }
+  .edge-line{ stroke:var(--edge); stroke-width:1.6px; fill:none; }
+  .edge-group.focused .edge-line{ stroke:var(--edge-strong); stroke-width:2.4px; }
+  .edge-group.path-hi .edge-line{ stroke:var(--accent); stroke-width:3px; }
+  .edge-group.dimmed{ opacity:0.16; }
+  .edge-label-bg{ fill:var(--canvas); }
+  .edge-label-text{ font-family:var(--font-body); fill:var(--ink-muted); font-size:9.5px; }
+  .legend-mini{ display:flex; flex-direction:column; gap:6px; }
+  .legend-mini .row{ display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink-secondary); }
+  .legend-mini .sw{ width:11px; height:11px; border-radius:50%; flex:none; }
+  .legend-mini .sw.concept{ border-radius:2px; transform:rotate(45deg); }
+
+  /* ---------------- Drawer ---------------- */
+  .drawer{
+    position:fixed; top:0; right:0; bottom:0; width:380px; max-width:92vw; background:var(--surface);
+    border-left:1px solid var(--border); box-shadow:var(--shadow-2); transform:translateX(100%);
+    transition:transform .22s ease; z-index:60; display:flex; flex-direction:column;
+  }
+  .drawer.open{ transform:translateX(0); }
+  .drawer[hidden]{ display:none; }
+  .drawer-head{ display:flex; align-items:flex-start; gap:10px; padding:16px; border-bottom:1px solid var(--border); }
+  .drawer-icon{
+    width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .drawer-icon svg{ width:19px; height:19px; }
+  .drawer-title{ font-weight:700; font-size:15px; line-height:1.3; }
+  .drawer-sub{ font-size:11.5px; color:var(--ink-muted); margin-top:3px; }
+  .drawer-close{
+    margin-left:auto; width:28px; height:28px; border-radius:7px; border:1px solid var(--border); background:var(--canvas);
+    color:var(--ink-muted); cursor:pointer; flex:none;
+  }
+  .drawer-body{ padding:16px; overflow:auto; flex:1; display:flex; flex-direction:column; gap:16px; }
+  .field-grid{ display:grid; grid-template-columns:1fr; gap:10px; margin:0; }
+  .field-grid .f{ display:flex; flex-direction:column; gap:2px; }
+  .field-grid dt{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-muted); }
+  .field-grid dd{ margin:0; font-size:13px; color:var(--ink); }
+  .rel-card{ background:var(--canvas); border:1px solid var(--border); border-radius:9px; padding:9px 11px; font-size:12px; }
+  .drawer-note{ font-size:11px; color:var(--ink-muted); border-top:1px solid var(--border); padding-top:10px; }
+  .drawer-actions{ display:flex; gap:8px; }
+  .list-compact{ display:flex; flex-direction:column; gap:6px; }
+  .list-compact li{ font-size:12.5px; color:var(--ink-secondary); }
+
+  /* ---------------- AI Discovery ---------------- */
+  .ai-shell{ max-width:820px; margin:0 auto; }
+  .ai-input-row{ display:flex; gap:8px; }
+  .ai-input{
+    flex:1; padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface);
+    font-size:13.5px; color:var(--ink);
+  }
+  .ai-suggest{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .ai-suggest button{
+    font-size:12px; padding:7px 12px; border-radius:999px; border:1px solid var(--border); background:var(--surface);
+    color:var(--ink-secondary); cursor:pointer;
+  }
+  .ai-suggest button:hover{ border-color:var(--brand); color:var(--brand-strong); }
+  .ai-thread{ display:flex; flex-direction:column; gap:14px; margin-top:22px; }
+  .ai-q{ align-self:flex-end; background:var(--brand); color:#fff; padding:10px 14px; border-radius:12px 12px 2px 12px; font-size:13px; max-width:80%; }
+  .ai-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:var(--shadow-1);
+  }
+  .ai-card .ai-row{ margin-top:10px; }
+  .ai-card h5{ margin:0 0 5px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-muted); }
+  .ai-card .ai-answer{ font-size:13.5px; line-height:1.55; }
+  .ai-card .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+
+  /* ---------------- Geography & Themes ---------------- */
+  .geo-split{ display:grid; grid-template-columns:1.1fr 1fr; gap:26px; align-items:start; }
+  .map-wrap{
+    margin-top:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface);
+    padding:10px; box-shadow:var(--shadow-1);
+  }
+  .map-wrap svg{ width:100%; height:auto; display:block; }
+  .au-state path{
+    fill:var(--canvas); stroke:var(--surface); stroke-width:1.5; transition:fill 0.15s ease;
+    cursor:pointer;
+  }
+  .au-state:hover path{ fill:var(--brand-tint); }
+  .au-state[aria-pressed="true"] path{ fill:var(--brand); }
+  .au-state.hotspot path{ fill:var(--plum-tint); }
+  .au-state.hotspot[aria-pressed="true"] path{ fill:var(--plum); }
+  .au-state:focus-visible path{ outline:none; stroke:var(--brand); stroke-width:3; }
+  .au-state .state-label{
+    font-size:11px; font-weight:600; fill:var(--ink-secondary); pointer-events:none;
+    font-family:var(--font-body);
+  }
+  .au-state[aria-pressed="true"] .state-label{ fill:#fff; }
+  .au-state-act .act-pin{ fill:var(--plum); stroke:var(--surface); stroke-width:1.5; }
+  .au-state-act:hover .act-pin{ stroke-width:3; }
+  .au-state-act[aria-pressed="true"] .act-pin{ fill:var(--brand); }
+  .au-state-act .act-leader{ stroke:var(--ink-muted); stroke-width:1; fill:none; }
+  .au-state-act .act-label{
+    font-size:10px; font-weight:700; fill:var(--ink-secondary); pointer-events:none;
+    font-family:var(--font-body);
+  }
+  .map-attribution{ margin-top:8px; font-size:10.5px; color:var(--ink-muted); text-align:right; }
+  .theme-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:14px; }
+  .theme-card{
+    text-align:left; border-radius:11px; border:1px solid var(--border); background:var(--surface); padding:12px;
+    cursor:pointer;
+  }
+  .theme-card[aria-pressed="true"]{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-tint); }
+  .theme-card.out-of-scope{ opacity:0.55; }
+  .theme-card .tc-name{ font-weight:700; font-size:13px; }
+  .theme-card .tc-note{ font-size:11px; color:var(--ink-muted); margin-top:4px; }
+  .region-detail{ margin-top:16px; padding:14px; background:var(--surface); border:1px solid var(--border); border-radius:14px; font-size:12.5px; }
+
+  /* ---------------- Insights ---------------- */
+  .insight-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  .insight-card{ background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; }
+  .insight-card h3{ font-size:13.5px; margin-bottom:10px; }
+  .bar-row{ display:flex; align-items:center; gap:8px; margin:7px 0; font-size:11.5px; }
+  .bar-row .b-label{ width:130px; flex:none; color:var(--ink-secondary); }
+  .bar-track{ flex:1; height:8px; border-radius:5px; background:var(--canvas); overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:5px; background:var(--group-performer); }
+  .heat-grid{ display:grid; gap:3px; margin-top:8px; }
+  .heat-cell{ aspect-ratio:1; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-family:var(--font-mono); }
+  .trend-pill{ display:inline-flex; align-items:center; gap:4px; font-size:11px; padding:2px 8px; border-radius:999px; background:var(--canvas); border:1px solid var(--border); }
+  .gap-list, .opp-list{ margin:0; padding-left:18px; font-size:12.5px; color:var(--ink-secondary); display:flex; flex-direction:column; gap:6px; }
+
+  /* ---------------- Data Trust ---------------- */
+  .trust-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .source-card{ background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; }
+  .source-card h4{ font-size:13px; margin-bottom:4px; }
+  .source-card p{ font-size:12px; color:var(--ink-muted); margin:0; }
+  .legend-strip{ display:flex; flex-wrap:wrap; gap:14px; margin:14px 0 22px; }
+
+  /* ---------------- Shortlist drawer / briefing ---------------- */
+  .shortlist-item{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); }
+  .shortlist-item:last-child{ border-bottom:none; }
+  .shortlist-item .si-name{ font-size:12.5px; font-weight:600; }
+  .shortlist-item .si-type{ font-size:10.5px; color:var(--ink-muted); }
+  .briefing{ display:flex; flex-direction:column; gap:14px; font-size:12.5px; }
+  .briefing h5{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-muted); margin:0 0 6px; }
+
+  /* ---------------- Why popover ---------------- */
+  .why-popover{
+    position:fixed; max-width:280px; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    box-shadow:var(--shadow-2); padding:12px 14px; font-size:12px; color:var(--ink-secondary); z-index:80;
+  }
+  .why-popover h6{ margin:0 0 6px; font-size:11px; color:var(--ink); }
+  .why-popover .wp-close{ position:absolute; top:6px; right:8px; border:none; background:none; color:var(--ink-muted); cursor:pointer; font-size:13px; }
+
+  /* ---------------- Walkthrough panel ---------------- */
+  .walkthrough-bar{
+    position:fixed; right:18px; bottom:18px; z-index:90; background:var(--brand-strong);
+    color:#fff; border-radius:14px; padding:12px 14px; box-shadow:var(--shadow-2); width:280px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .walkthrough-bar .wt-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .walkthrough-bar .wt-step{ font-size:10px; opacity:0.75; text-transform:uppercase; letter-spacing:0.05em; }
+  .walkthrough-bar .wt-exit{ border:none; background:none; color:#fff; opacity:0.75; cursor:pointer; font-size:14px; padding:0; line-height:1; }
+  .walkthrough-bar .wt-exit:hover{ opacity:1; }
+  .walkthrough-bar .wt-caption{ font-size:12.5px; line-height:1.4; }
+  .walkthrough-bar .wt-actions{ display:flex; justify-content:flex-end; gap:8px; }
+  .walkthrough-bar button.wt-nav{ font-size:11.5px; font-weight:600; padding:6px 11px; border-radius:999px; border:1px solid rgba(255,255,255,0.35); background:transparent; color:#fff; cursor:pointer; }
+  .walkthrough-bar button.wt-nav.primary{ background:#fff; color:var(--brand-strong); border-color:#fff; }
+  .walkthrough-bar button.wt-nav:disabled{ opacity:0.4; cursor:default; }
+  .wt-highlight{
+    outline:3px solid var(--plum) !important; outline-offset:2px !important;
+    box-shadow:0 0 0 6px var(--plum-tint) !important; border-radius:8px;
+    animation:wt-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes wt-pulse{ 0%,100%{ outline-color:var(--plum); } 50%{ outline-color:var(--brand); } }
+
+  @media (max-width: 980px){
+    .metric-grid{ grid-template-columns:repeat(3,1fr); }
+    .quick-grid{ grid-template-columns:repeat(2,1fr); }
+    .directory-layout, .network-layout{ grid-template-columns:1fr; }
+    .geo-split, .insight-grid, .trust-grid{ grid-template-columns:1fr; }
+    .filter-panel{ position:static; }
+    .brand-word .sub{ display:none; }
+    .rail-toggle{ display:inline-flex; align-items:center; justify-content:center; }
+  }
+  @media (max-width: 620px){
+    .metric-grid{ grid-template-columns:repeat(2,1fr); }
+    .quick-grid{ grid-template-columns:1fr; }
+    .demo-badge{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <button class="rail-toggle" id="railToggle" aria-label="Toggle filters">☰</button>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 26 26" fill="none">
+          <path d="M3 17 A11 11 0 0 1 17 3" stroke="var(--pill-secondary)" stroke-width="3.4" stroke-linecap="round" />
+          <path d="M9 23 A11 11 0 0 0 23 9" stroke="var(--plum)" stroke-width="3.4" stroke-linecap="round" />
+        </svg>
+      </span>
+      <span class="brand-word">
+        <span class="title">Australian R&amp;D Intelligent Directory</span>
+        <span class="sub">for Cooperative Research Australia · Open Source pilot</span>
+      </span>
+    </div>
+    <div class="searchbar">
+      <input id="searchInput" class="searchbar-field" placeholder="Search CRCs, NCRIS facilities, sectors, research themes, regions..." autocomplete="off" />
+      <div class="searchbar-menu" id="searchMenu" hidden></div>
+    </div>
+    <span class="demo-badge">Pilot demo: CRCs + NCRIS facilities in decarbonisation</span>
+    <button class="icon-btn" id="shortlistBtn">Shortlist <span class="count-badge" id="shortlistCount">0</span></button>
+    <button class="icon-btn primary" id="walkthroughBtn">▶ Run demo walkthrough</button>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
+    </button>
+  </header>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab-btn" data-view="overview" aria-pressed="true">Overview</button>
+    <button class="tab-btn" data-view="directory" aria-pressed="false">Directory</button>
+    <button class="tab-btn" data-view="network" aria-pressed="false">Ecosystem Network</button>
+    <button class="tab-btn" data-view="ai" aria-pressed="false">AI Discovery</button>
+    <button class="tab-btn" data-view="geo" aria-pressed="false">Geography &amp; Themes</button>
+    <button class="tab-btn" data-view="insights" aria-pressed="false">Insights</button>
+    <button class="tab-btn" data-view="trust" aria-pressed="false">Data Trust</button>
+  </nav>
+
+  <main class="views" id="views">
+
+    <!-- ============ OVERVIEW ============ -->
+    <section class="view" id="view-overview" data-view="overview">
+      <div class="view-head">
+        <h1 class="view-title">Australian R&amp;D Intelligent Directory</h1>
+        <p class="view-subtitle">Map, search, and understand Australia's R&amp;D ecosystem through organisations, facilities, sectors, themes, and collaboration networks.</p>
+        <div class="data-notice">⚠ Demo data only. Synthetic and public-style examples — not a factual record of any real organisation.</div>
+      </div>
+      <div class="view-inner">
+        <div class="quick-grid" id="quickGrid"></div>
+        <div class="section-label">Ecosystem coverage (pilot subset)</div>
+        <div class="metric-grid" id="metricGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ DIRECTORY ============ -->
+    <section class="view" id="view-directory" data-view="directory" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Intelligent Directory Search</h1>
+        <p class="view-subtitle">Search across CRCs, NCRIS facilities, universities, industry partners, government agencies, precincts, incubators, research themes and initiatives.</p>
+      </div>
+      <div class="view-inner directory-layout">
+        <aside class="filter-panel" id="dirFilterPanel"></aside>
+        <div>
+          <div class="result-count" id="dirResultCount"></div>
+          <div class="result-list" id="dirResultList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ NETWORK ============ -->
+    <section class="view" id="view-network" data-view="network" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Ecosystem Network Graph</h1>
+        <p class="view-subtitle">Explore collaboration, funding, hosting and shared-theme relationships across the pilot subset.</p>
+        <div class="net-toolbar">
+          <div class="hop-toggle segmented" id="hopSeg">
+            <button data-hop="1" aria-pressed="false">1-hop</button>
+            <button data-hop="2" aria-pressed="true">2-hop</button>
+            <button data-hop="3" aria-pressed="false">3-hop</button>
+          </div>
+          <button class="icon-btn" id="explainBtn" aria-pressed="false">Explain this connection</button>
+          <button class="icon-btn" id="strongestPathBtn">Show strongest collaboration path</button>
+          <button class="icon-btn" id="netResetBtn">Reset view</button>
+        </div>
+      </div>
+      <div class="view-inner network-layout">
+        <aside class="filter-panel" id="netFilterPanel"></aside>
+        <div class="canvas-wrap" id="canvasWrap">
+          <div class="explain-banner" id="explainBanner" hidden></div>
+          <div class="net-actions" id="netActions"></div>
+          <svg id="graphSvg" viewBox="0 0 1120 760" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <pattern id="dotgrid" width="22" height="22" patternUnits="userSpaceOnUse">
+                <circle cx="1.2" cy="1.2" r="1.2" fill="var(--border)"></circle>
+              </pattern>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--edge)"></path>
+              </marker>
+              <symbol id="ic-crc" viewBox="0 0 24 24"><path d="M4 20V9l8-5 8 5v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 20v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+              <symbol id="ic-university" viewBox="0 0 24 24"><path d="M12 4 2 9l10 5 10-5-10-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 11.5V17c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-5.5" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+              <symbol id="ic-facility" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+              <symbol id="ic-precinct" viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 9.6 15 9.6M8.6 10.4 11 15M15.4 10.4 13 15" stroke="currentColor" stroke-width="1.4"/></symbol>
+              <symbol id="ic-industry" viewBox="0 0 24 24"><rect x="3.5" y="9" width="17" height="11" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 9V6.6A1.6 1.6 0 0 1 10.1 5h3.8a1.6 1.6 0 0 1 1.6 1.6V9" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+              <symbol id="ic-gov" viewBox="0 0 24 24"><path d="M12 3 21 8H3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 10.5V18M9.5 10.5V18M14.5 10.5V18M19 10.5V18M3.5 20.5h17" stroke="currentColor" stroke-width="1.8"/></symbol>
+              <symbol id="ic-incubator" viewBox="0 0 24 24"><path d="M12 2.5c3 2.4 4.6 5.7 4.6 8.9 0 2.7-1 5-2.4 6.7h-4.4c-1.4-1.7-2.4-4-2.4-6.7 0-3.2 1.6-6.5 4.6-8.9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 18.5 8 21.5M14.5 18.5 16 21.5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10.5" r="1.6" fill="currentColor" stroke="none"/></symbol>
+              <symbol id="ic-theme" viewBox="0 0 24 24"><path d="M20.6 12.7 12.7 20.6a1.6 1.6 0 0 1-2.3 0l-7-7a1.6 1.6 0 0 1-.4-1.6L4.8 4.8 12.1 3l7.1 1.9c.6.2 1.1.7 1.3 1.3L20.6 12.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.4" fill="currentColor" stroke="none"/></symbol>
+              <symbol id="ic-project" viewBox="0 0 24 24"><path d="M6 21V4c0-.6.4-1 1-1h9.5c.8 0 1.2 1 .6 1.5L14 7.5l3.1 3c.6.5.2 1.5-.6 1.5H7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+            </defs>
+            <rect x="-3000" y="-3000" width="6000" height="6000" fill="url(#dotgrid)"></rect>
+            <g id="viewport">
+              <g id="edgesLayer"></g>
+              <g id="nodesLayer"></g>
+            </g>
+          </svg>
+          <div class="net-hint">Drag to pan · scroll to zoom · click empty space to clear selection</div>
+          <div class="zoom-controls">
+            <button id="zoomIn" aria-label="Zoom in">+</button>
+            <button id="zoomReset" aria-label="Reset zoom">⟳</button>
+            <button id="zoomOut" aria-label="Zoom out">−</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AI DISCOVERY ============ -->
+    <section class="view" id="view-ai" data-view="ai" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Plain-English AI Discovery</h1>
+        <p class="view-subtitle">Ask questions about the ecosystem in plain English. Responses are pre-scripted mock answers over the pilot dataset — no live AI model or external API is called.</p>
+      </div>
+      <div class="view-inner ai-shell">
+        <div class="ai-input-row">
+          <input id="aiInput" class="ai-input" placeholder="Ask an ecosystem question..." autocomplete="off" />
+          <button class="icon-btn primary" id="aiAskBtn">Ask</button>
+        </div>
+        <div class="ai-suggest" id="aiSuggest"></div>
+        <div class="ai-thread" id="aiThread"></div>
+      </div>
+    </section>
+
+    <!-- ============ GEOGRAPHY & THEMES ============ -->
+    <section class="view" id="view-geo" data-view="geo" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Geography &amp; Sector / Theme Explorer</h1>
+        <p class="view-subtitle">A real state/territory map and a research-theme explorer. Selecting a state or theme filters the Directory and Ecosystem Network.</p>
+      </div>
+      <div class="view-inner geo-split">
+        <div>
+          <div class="section-label">Australia by state / territory</div>
+          <div class="map-wrap">
+            <svg id="auMap" viewBox="0 0 760 620" role="group" aria-label="Map of Australian states and territories">
+              <g class="au-state" data-code="NT" tabindex="0" role="button" aria-label="Northern Territory">
+                <path d="M337.459,37.665L332.855,34.979L332.553,32.125L335.163,29.628L337.419,35.314ZM344.6,39.238L337.456,34.584L335.481,28.493L340.703,30.642L343.69,29.351L345.295,30.046L349.397,27.512L351.651,28.42L353.473,31.841L349.556,35.975ZM435.907,74.535L435.607,76.411L427.762,75.122L428.977,69.151L434.36,69.393L432.797,72.894L433.265,74.731ZM452.658,112.343L452.661,268.116L348.811,268.124L328.359,268.114L314.629,268.208L314.538,123.758L314.538,93.898L314.538,85.502L317.89,85.348L323.959,86.706L324.903,83.835L322.827,80.412L320.04,78.247L322.096,73.948L325.784,71.614L327.257,64.065L330.517,63.955L333.942,61.042L331.661,58.241L331.796,55.448L334.912,54.247L335.323,50.763L338.716,49.163L339.529,46.243L342.404,47.18L345.643,45.822L345.603,42.545L350.511,43.706L352.79,44.862L359.525,44.405L361.539,45.049L364.008,43.336L366.115,43.373L370.375,41.43L370.321,36.198L371.188,34.838L368.095,31.999L366.296,31.386L361.909,32.746L358.508,29.373L360.336,26.528L365.802,26.57L368.302,28.673L370.889,32.488L374,29.751L375.869,31.102L378.166,35.302L385.388,37.603L388.19,35.78L388.804,37.91L392.042,37.758L394.439,41.165L399.189,41.243L403.107,40.131L404.63,42.264L407.902,44.382L410.084,44.521L412.442,41.614L415.609,41.739L415.718,39.533L418.712,40.881L416.95,42.7L417.902,44.606L420.175,42.579L422.57,47.602L426.468,46.702L427.545,43.959L424.689,42.816L428.883,39.478L431.198,43.07L433.86,42.891L436.975,45.82L434.298,47.695L431.838,51.258L430.341,55.254L430.068,58.279L427.604,59.811L423.452,58.826L420.296,61.251L419.594,65.439L420.257,67.41L422.272,67.944L419.954,74.777L418.167,75.988L412.957,83.253L413.275,85.999L421.109,91.675L425.661,94.203L426.872,97.145L430.687,98.981L433.713,101.949L437.776,102.113L442.971,105.513L448.628,107.496Z" />
+                <text class="state-label" x="381.5" y="161" text-anchor="middle">NT</text>
+              </g>
+              <g class="au-state" data-code="WA" tabindex="0" role="button" aria-label="Western Australia">
+                <path d="M314.538,85.502L314.538,93.898L314.538,123.758L314.629,268.208L314.543,367.925L307.7,371.458L299.382,375.1L295.164,375.918L288.982,378.315L279.046,379.205L271.258,377.8L265.531,379.708L261.057,383.403L257.793,384.35L249.265,389.805L242.134,391.411L239.441,394.227L237.131,401.947L230.761,408.335L228.124,408.139L225.041,410.422L222.735,407.442L220.083,408.355L212.556,408.468L208.931,410.607L207.326,406.955L203.755,408.219L199.789,406.777L189.659,407.428L182.823,409.595L176.5,408.762L170.532,411.93L168.252,416.232L164.279,419.443L159.721,418.488L155.521,422.724L146.985,428.585L138.571,430.354L135.488,429.053L122.106,428.692L118.368,426.195L114.634,425.322L113.709,423.149L109.637,418.761L104.512,415.732L99.83,414.944L98.983,404.392L99.649,401.293L103.078,403.673L106.287,402.785L110.629,396.512L108.815,385.66L111.385,383.871L110.934,379.295L111.1,371.549L110.155,367.348L106.412,360.493L104.455,355.24L100.417,346.635L100.055,342.534L98.729,338.737L99.355,328.616L97.159,321.73L93.851,317.776L93.311,313.61L89.066,306.574L86.715,304.156L85.8,299.996L86.511,297.492L85.464,293.058L81.266,284.711L77.991,279.954L73.315,274.956L72.445,272.213L74.61,270.156L76.893,272.983L77.386,276.819L78.876,279.327L82.134,276.808L82.22,273.878L77.46,269.405L75.003,263.188L76.639,260.631L80.266,266.23L79.502,270.168L81.256,271L85.411,276.021L87.338,274.502L86.985,271.245L88.308,265.527L84.873,261.88L81.379,254.194L79.76,253.195L78.425,246.955L75.534,243.099L74.895,238.137L77.168,230.184L80.403,226.329L80.669,220.758L81.559,218.033L79.074,210.942L81.273,206.45L83.323,200.516L86.29,199.426L85.541,203.797L86.709,209.664L90.063,208.247L91.418,204.064L94.339,198.265L98.814,195.765L100.502,195.64L106.628,192.944L109.198,189.88L112.07,188.309L113.891,185.552L117.886,182.806L122.336,181.233L125.897,178.657L128.478,179.779L131.409,178.207L136.619,179.982L143.434,177.989L146.792,174.738L158.025,172.707L162.31,167.524L163.976,167.371L170.006,169.19L173.132,167.57L180.099,166.543L192.192,161.383L196.016,158.172L199.268,153.753L203.509,144.559L212.295,137.692L212.214,135.24L210.355,133.855L209.276,128.448L209.324,125.311L211.053,121.211L215.155,116.989L218.659,115.667L218.786,113.078L220.84,111.504L223.937,114.928L227.185,121.688L230.954,127.756L231.961,122.789L231.27,120.65L234.223,117.687L231.789,114.242L233.319,108.911L235.339,109.355L237.262,107.396L240.361,108.308L241.334,109.934L243.707,109.112L244.414,105.112L246.013,102.46L243.949,101.309L243.515,98.184L244.824,95.157L248.153,94.786L248.631,91.576L253.659,88.736L256.885,85.993L255.241,83.538L258.312,79.979L262.191,80.398L262.055,76.587L266.091,79.058L267.008,81.892L269.077,79.856L270.751,73.755L272.917,75.387L273.629,72.495L275.487,72.924L277.715,75.333L280.61,71.246L279.947,68.464L283.169,67.402L284.992,69.304L290.371,70.971L293.944,74.483L298.535,80.91L301.792,82.831L300.257,89.151L306.072,88.298L305.142,84.373L307.418,83.715ZM72.156,270.598L69.423,266.764L67.577,261.774L68.805,260.81Z" />
+                <text class="state-label" x="205" y="230" text-anchor="middle">WA</text>
+              </g>
+              <g class="au-state" data-code="SA" tabindex="0" role="button" aria-label="South Australia">
+                <path d="M451.286,442.426L453.617,443.065L453.271,446.084L448.985,445.01L444.297,449.169L442.793,447.635L432.89,448.626L430.225,445.984L430.878,443.182L442.175,439.806L445.38,440.07L446.482,442.758L450.362,443.888ZM314.543,367.925L314.629,268.208L328.359,268.114L348.811,268.124L452.661,268.116L498.699,268.119L498.733,320.04L498.657,410.524L498.26,409.993L498.202,487.236L494.066,487.386L488.807,483.294L485.207,476.874L483.25,476.135L479.53,470.483L479.538,465.135L481.224,462.701L480.637,458.107L477.943,451.533L473.706,445.855L473.152,441.707L473.471,435.731L471.26,434.644L467.539,436.371L467.862,439.178L463.725,438.827L460.883,440.992L455.339,441.296L455.001,438.716L459.387,435.154L460.544,429.168L460.266,423.629L456.873,418.99L454.068,412.579L451.494,417.974L450.742,423.297L447.656,432.105L443.769,430.949L439.867,433.356L434.721,433.424L436.699,430.57L436.954,427.93L444.276,426.769L444.957,422.317L445.207,412.733L446.559,407.932L451.864,401.941L449.803,396.769L453.373,394.044L449.197,391.543L446.445,392.218L443.218,397.179L442.848,399.549L439.486,404.787L436.535,404.184L435.217,406.509L430.86,408.818L427.432,411.748L425.131,416.237L420.992,420.048L418.95,425.241L417.045,427.834L412.699,422.044L411.972,415.44L410.622,410.198L407.13,405.8L404.17,403.387L404.595,401.613L402.126,394.92L400.377,394.238L396.325,395.389L394.464,388.158L395.51,384.164L393.02,381.703L389.011,383.312L388.603,378.023L385.221,375.254L383.367,377.279L378.479,376.935L372.626,372.686L368.079,372.619L363.583,373.965L357.033,368.459L347.511,363.987L342.063,366.441L333.925,365.827L318.097,367.306Z" />
+                <text class="state-label" x="415" y="345" text-anchor="middle">SA</text>
+              </g>
+              <g class="au-state" data-code="QLD" tabindex="0" role="button" aria-label="Queensland">
+                <path d="M684.096,264.643L681.969,260.597L683.831,256.863L683.604,255.033L685.829,252.401L688.538,251.361L684.795,260.224ZM690.609,305.184L685.743,307.154L684.566,308.717L679.163,308.843L674.965,307.15L673.153,309.11L666.893,312.159L668.275,315.314L667.776,318.172L664.84,319.599L663.322,318.039L660.677,319.214L659.286,322.05L657.453,322.867L656.641,318.796L652.721,315.401L648.842,313.622L643.959,314.033L641.724,312.086L632.286,313.517L628.611,312.996L620.735,320.036L574.757,320.036L555.271,320.036L531.381,320.036L498.733,320.04L498.699,268.119L452.661,268.116L452.658,112.343L455.642,114.788L460.125,116.077L462.468,115.941L468.16,117.861L470.167,120.671L471.997,124.981L474.708,125.572L477.46,127.849L480.494,128.727L483.029,130.69L485.374,131.044L489.431,130.305L496.133,126.741L498.03,119.498L501.676,114.732L505.238,104.663L504.837,101.971L505.758,96.077L508.904,87.97L507.385,83.796L506.686,79.318L507.794,75.743L507.563,72.733L505.887,68.98L507.007,64.316L509.26,59.918L507.678,55.702L511.573,50.761L508.853,47.28L510.597,43.549L512.762,41.592L513.56,37.193L515.922,30.365L516.158,24.123L519.301,22.901L520.859,20L523.447,20.642L523.383,22.543L525.467,24.325L527.325,30.658L527.232,37.581L528.903,39.058L532.44,40.001L530.952,42.399L530.573,45.445L533.616,46.683L533.671,48.325L535.982,49.885L534.943,53.537L537.273,54.014L537.495,61.282L538.51,62.726L537.529,67.847L539.906,72.067L541.387,78.241L544.912,79.42L547.087,77.713L551.407,75.719L553.431,77.373L555.116,80.525L558.489,81.489L559.451,83.64L564.922,86.685L563.671,89.687L564.517,92.814L563.891,94.649L565.592,99.236L565.588,102.124L567.17,104.802L566.246,110.523L572.446,118.086L575.911,125.334L577.021,130.601L576.864,134.86L575.566,139.416L578.673,143.516L580.541,144.227L579.537,149.379L582.297,152.908L589.015,156.676L594.656,158.674L597.396,158.456L599.288,160.458L601.042,165.173L605.681,166.705L609.49,167.172L612.458,171.407L614.127,169.471L617.913,171.832L619.414,175.308L616.353,177.224L617.303,179.779L624.755,185.733L625.143,189.002L628.258,194.012L628.059,197.161L630.512,204.776L632.15,206.722L635.591,206.722L638.017,203.608L639.881,207.404L644.172,209.844L645.429,206.398L647.633,208.229L647.296,210.093L649.376,213.057L648.404,219.696L650.112,225.958L652.506,226.82L654.732,230.774L658.662,233.897L662.647,234.07L666.476,237.92L669.521,244.498L673.917,247.067L675.289,251.085L677.803,255.276L681.431,256.019L681.624,263.612L683.426,266.257L685.637,267.261L683.949,273.399L685.04,280.628L685.257,286.697L683.375,288.318L683.839,290.676L686.773,293.552L689.486,299.939L689.141,302.259ZM470.275,115.644L470.531,113.078L472.706,110.867L476.2,110.089L476.912,111.507L474.782,114.154ZM655.637,230.677L653.166,227.637L655.267,226.358L656.558,228.762ZM689.088,297.906L689.498,292.452L691.145,292.487Z" />
+                <text class="state-label" x="580" y="200" text-anchor="middle">QLD</text>
+              </g>
+              <g class="au-state" data-code="NSW" tabindex="0" role="button" aria-label="New South Wales">
+                <path d="M636.464,476.524L609.258,462.753L609.277,459.111L606.896,454.957L606.098,448.681L601.867,446.507L596.954,446.837L595.528,448.62L589.502,449.518L583.112,447.116L580.002,448.514L571.369,446.949L568.45,444.332L565.557,445.285L559.885,445.237L559.299,449.469L556.587,450.234L554.095,448.971L550.084,443.365L546.114,439.683L538.204,435.105L535.568,432.075L534.461,428.166L534.646,424.824L529.098,422.888L526.127,421L524.485,423.883L522.49,424.514L519.843,420.091L519.774,417.416L517.634,413.807L514.633,412.158L509.961,412.06L506.722,413.796L502.488,411.565L498.657,410.524L498.733,320.04L531.381,320.036L555.271,320.036L574.757,320.036L620.735,320.036L628.611,312.996L632.286,313.517L641.724,312.086L643.959,314.033L648.842,313.622L652.721,315.401L656.641,318.796L657.453,322.867L659.286,322.05L660.677,319.214L663.322,318.039L664.84,319.599L667.776,318.172L668.275,315.314L666.893,312.159L673.153,309.11L674.965,307.15L679.163,308.843L684.566,308.717L685.743,307.154L690.609,305.184L691.921,307.34L691.433,311.138L692.423,314.098L692.144,317.62L689.721,320.803L688.027,325.806L688.453,327.04L686.741,336.827L683.13,347.773L682.929,352.533L683.995,354.561L680.524,367.276L675.352,375.852L675.627,380.798L669.453,385.87L669.72,387.48L664.616,389.641L660.962,396.571L659.128,397.482L659.13,400.862L657.373,403.218L656.338,409.513L651.142,416.23L649.704,420.447L648.705,428.924L645.097,432.952L643.047,438.619L639.298,446.422L638.887,453.788L635.31,465.168L636.906,469.753L636.006,472.068Z" />
+                <text class="state-label" x="600" y="410" text-anchor="middle">NSW</text>
+              </g>
+              <g class="au-state" data-code="VIC" tabindex="0" role="button" aria-label="Victoria">
+                <path d="M498.202,487.236L498.26,409.993L498.657,410.524L502.488,411.565L506.722,413.796L509.961,412.06L514.633,412.158L517.634,413.807L519.774,417.416L519.843,420.091L522.49,424.514L524.485,423.883L526.127,421L529.098,422.888L534.646,424.824L534.461,428.166L535.568,432.075L538.204,435.105L546.114,439.683L550.084,443.365L554.095,448.971L556.587,450.234L559.299,449.469L559.885,445.237L565.557,445.285L568.45,444.332L571.369,446.949L580.002,448.514L583.112,447.116L589.502,449.518L595.528,448.62L596.954,446.837L601.867,446.507L606.098,448.681L606.896,454.957L609.277,459.111L609.258,462.753L636.464,476.524L633.514,477.451L631.785,480.083L628.475,481.771L610.857,482.515L605.561,484.085L599.071,488.195L588.828,498.733L578.256,500.812L579.972,503.948L582.624,501.763L582.844,507.102L580.745,508.166L577.605,502.557L573.955,502.773L572.599,498.745L568.764,498.999L566.459,496.654L568.596,493.293L566.894,490.412L563.996,490.619L560.542,495.704L558.561,495.871L562.09,488.655L559.7,483.883L557.385,484.087L552.815,487.955L554.457,491.833L550.793,492.027L545.676,495.454L542.309,499.616L537.715,502.819L530.123,498.446L526.365,497.247L519.858,493.089L516.499,493.798L513.496,491.685L509.117,491.505L507.46,494.133L501.655,489.116Z" />
+                <text class="state-label" x="549" y="470" text-anchor="middle">VIC</text>
+              </g>
+              <g class="au-state" data-code="TAS" tabindex="0" role="button" aria-label="Tasmania">
+                <path d="M589.488,600L584.622,598.693L576.009,597.463L569.211,586.534L566.57,583.758L564.065,578.863L563.108,572.643L564.375,569.903L562.908,564.882L559.385,560.248L555.254,550.076L554.224,544.265L556.426,540.147L564.296,541.661L578.386,548.859L584.351,548.749L591.03,545.179L598.263,545.36L599.808,542.679L603.094,543.487L606.332,540.51L609.505,542.598L611.152,545.571L610.17,549.071L610.977,552.488L610.176,562.333L607.328,568.578L605.422,581.057L606.187,586.486L599.846,583.34L599.249,586.528L594.48,589.777L592.232,593.043ZM608.092,530.993L604.639,524.994L602.443,523.041L605.618,519.995L610.401,524.798L611.258,529.339ZM543.526,528.218L542.194,524.031L543.738,517.154L546.396,518.738L546.976,524.069Z" />
+                <text class="state-label" x="584" y="570" text-anchor="middle">TAS</text>
+              </g>
+              <g class="au-state au-state-act" data-code="ACT" tabindex="0" role="button" aria-label="Australian Capital Territory (shown as callout — enclave too small to click directly)">
+                <path d="M622.242,445.98L620.335,445.139L617.887,440.967L618.655,434.712L622.683,431.732L625.278,433.713L622.766,440.376Z" />
+                <path class="act-leader" d="M621.2,438.3 L700,410" />
+                <circle class="act-pin" cx="700" cy="410" r="6" />
+                <text class="act-label" x="710" y="413">ACT</text>
+              </g>
+            </svg>
+            <div class="map-attribution">Simplified state/territory boundaries: amCharts geodata, free license</div>
+          </div>
+          <div class="region-detail" id="regionDetail">Select a state to see capability density, decarbonisation hotspot status, and collaboration links.</div>
+        </div>
+        <div>
+          <div class="section-label">Sector / Theme Explorer</div>
+          <div class="theme-grid" id="themeGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INSIGHTS ============ -->
+    <section class="view" id="view-insights" data-view="insights" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Ecosystem Intelligence &amp; Insights</h1>
+        <p class="view-subtitle">Illustrative, mock-computed signals over the pilot subset — not statistically validated findings.</p>
+      </div>
+      <div class="view-inner insight-grid" id="insightGrid"></div>
+    </section>
+
+    <!-- ============ DATA TRUST ============ -->
+    <section class="view" id="view-trust" data-view="trust" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Data Sources &amp; Trust</h1>
+        <p class="view-subtitle">This pilot's data model is designed to be traced back to source categories and confidence levels. In this demo, every source below is an illustrative stand-in — no live feeds are connected.</p>
+      </div>
+      <div class="view-inner">
+        <div class="section-label">Data confidence legend</div>
+        <div class="legend-strip" id="confidenceLegend"></div>
+        <div class="section-label">Source categories</div>
+        <div class="trust-grid" id="sourceGrid"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Entity / theme / project detail drawer -->
+  <aside class="drawer" id="drawer" hidden inert>
+    <div class="drawer-head">
+      <div class="drawer-icon" id="drawerIcon"></div>
+      <div>
+        <div class="drawer-title" id="drawerTitle"></div>
+        <div class="drawer-sub" id="drawerSub"></div>
+      </div>
+      <button class="drawer-close" id="drawerClose" aria-label="Close entity details">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+
+  <!-- Shortlist drawer -->
+  <aside class="drawer" id="shortlistDrawer" hidden inert>
+    <div class="drawer-head">
+      <div class="drawer-icon" style="background:var(--brand-tint); color:var(--brand-strong);">★</div>
+      <div>
+        <div class="drawer-title">Shortlist</div>
+        <div class="drawer-sub" id="shortlistSub">0 items</div>
+      </div>
+      <button class="drawer-close" id="shortlistClose" aria-label="Close shortlist">✕</button>
+    </div>
+    <div class="drawer-body" id="shortlistBody"></div>
+  </aside>
+
+  <div class="walkthrough-bar" id="walkthroughBar" hidden>
+    <div class="wt-head">
+      <div class="wt-step" id="wtStep"></div>
+      <button class="wt-exit" id="wtExit" aria-label="Exit walkthrough">✕</button>
+    </div>
+    <div class="wt-caption" id="wtCaption"></div>
+    <div class="wt-actions">
+      <button class="wt-nav" id="wtBack">Back</button>
+      <button class="wt-nav primary" id="wtNext">Next</button>
+    </div>
+  </div>
+
+</div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

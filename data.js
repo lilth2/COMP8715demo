@@ -508,8 +508,8 @@ window.RD_DATA = (function () {
       answer: "Within the pilot subset, Australian National Fabrication Facility is the NCRIS facility most directly tagged to hydrogen storage, via shared-theme and infrastructure links to CSIRO Energy and UNSW Hydrogen Energy Research Centre. No other NCRIS facility in this subset currently carries a hydrogen-storage tag — this is flagged as a coverage gap, not a confirmed absence of capability.",
       relevantEntityIds: ["anff", "csiro-energy", "unsw-hydrogen", "hydrogen-storage"],
       evidence: ["Theme tag 'Hydrogen storage' matched on 1 NCRIS facility, 1 government agency, 1 university"],
-      suggestedVisualisation: "Open the Sector / Theme Explorer on 'Hydrogen'.",
-      vizAction: { view: "geo", themeCategoryId: "hydrogen" },
+      suggestedVisualisation: "Open the Directory filtered to 'Hydrogen storage'.",
+      vizAction: { view: "directory", themeCategoryId: "hydrogen" },
       confidence: "public-source",
       followUps: ["Which universities work on hydrogen storage?", "What collaboration gaps exist in regional decarbonisation?"],
     },
@@ -605,8 +605,24 @@ window.RD_DATA = (function () {
   // ---------------------------------------------------------------------
   const domains = [
     {
-      id: "decarbonisation-energy", label: "Decarbonisation & Energy",
-      themeIds: ["decarbonisation", "grid-integration", "hydrogen-storage", "critical-minerals", "battery-storage", "carbon-capture"],
+      id: "decarbonisation-emissions", label: "Decarbonisation & Emissions",
+      themeIds: ["decarbonisation", "carbon-capture"],
+    },
+    {
+      id: "energy-grid-storage", label: "Energy Storage & Grid Systems",
+      themeIds: ["battery-storage", "hydrogen-storage", "grid-integration"],
+    },
+    {
+      id: "critical-minerals-manufacturing", label: "Critical Minerals & Manufacturing",
+      themeIds: ["critical-minerals"],
+    },
+    {
+      id: "digital-infrastructure-domain", label: "Digital & Computational Infrastructure",
+      themeIds: [],
+    },
+    {
+      id: "circular-economy", label: "Circular Economy & Recycling",
+      themeIds: [],
     },
   ];
 
@@ -617,9 +633,9 @@ window.RD_DATA = (function () {
   };
 
   // ---------------------------------------------------------------------
-  // Sector / Theme Explorer top-level categories — derived from `domains`,
-  // plus a small number of sector-linked categories with no dedicated
-  // theme node yet.
+  // Theme category lookup (used by AI Discovery's vizAction targeting) —
+  // derived from `domains`, plus a small number of sector-linked categories
+  // with no dedicated theme node yet.
   // ---------------------------------------------------------------------
   const explorerCategories = domains.reduce((acc, domain) => {
     domain.themeIds.forEach((themeId) => {
@@ -636,8 +652,9 @@ window.RD_DATA = (function () {
     });
     return acc;
   }, []).concat([
-    { id: "advanced-manufacturing", label: "Advanced manufacturing", themeId: "advanced-manufacturing", domainId: "decarbonisation-energy", inPilot: true, note: "Tagged across CRC, NCRIS-facility and precinct profiles (no dedicated theme node yet)." },
-    { id: "digital-infrastructure", label: "Digital infrastructure", themeId: "digital-infrastructure", domainId: "decarbonisation-energy", inPilot: true, note: "National Computational Infrastructure and Pawsey Supercomputing Research Centre." },
+    { id: "advanced-manufacturing", label: "Advanced manufacturing", themeId: "advanced-manufacturing", domainId: "critical-minerals-manufacturing", inPilot: true, note: "Tagged across CRC, NCRIS-facility and precinct profiles (no dedicated theme node yet)." },
+    { id: "digital-infrastructure", label: "Digital infrastructure", themeId: "digital-infrastructure", domainId: "digital-infrastructure-domain", inPilot: true, note: "National Computational Infrastructure and Pawsey Supercomputing Research Centre." },
+    { id: "circular-economy", label: "Circular Economy & Recycling", themeId: "circular-economy", domainId: "circular-economy", inPilot: false, note: "Planned expansion domain — pilot dataset not yet populated (illustrative)." },
   ]);
 
   // ---------------------------------------------------------------------

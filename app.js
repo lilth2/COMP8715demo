@@ -10,23 +10,13 @@
   };
   var ORG_TYPES = ["crc", "university", "research_institute", "industry_partner", "government_agency", "incubator_accelerator"];
   var INFRA_TYPES = ["ncris_facility", "technology_precinct"];
-  var OWNERSHIP = {
-    crc: { cat: "mixed", label: "Mixed (CRC co-investment)" },
-    university: { cat: "public", label: "Public (university sector)" },
-    research_institute: { cat: "public", label: "Public / not-for-profit research institute" },
-    ncris_facility: { cat: "public", label: "Public (national research infrastructure)" },
-    technology_precinct: { cat: "mixed", label: "Mixed (precinct partnership)" },
-    industry_partner: { cat: "private", label: "Private sector" },
-    government_agency: { cat: "public", label: "Public (government agency)" },
-    incubator_accelerator: { cat: "not-for-profit", label: "Not-for-profit / mixed" },
-  };
   var VIEWS = ["overview", "directory", "network", "ai", "geo", "insights", "trust"];
   var SVG_NS = "http://www.w3.org/2000/svg";
 
   var state = {
     view: "overview",
     search: "",
-    dirFilters: { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set(), confidence: new Set(), ownership: new Set() },
+    dirFilters: { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set() },
     netFilters: { relTypes: new Set(Object.keys(D.RELATIONSHIP_META)), theme: null },
     hop: 2,
     centerNodeId: "decarbonisation",
@@ -39,11 +29,11 @@
     transform: { x: 0, y: 0, k: 1 },
     walkthrough: { active: false, index: 0 },
     expandedTagCards: new Set(),
-    openThemeDomains: new Set(),
     openFilterDomains: new Set(D.domains.map(function (d) { return d.id; })),
     sectorFilterExpanded: false,
     actorTypeFilterExpanded: false,
     selectedOffice: null,
+    openFilterGroups: new Set(["Actor type", "Sector"]),
   };
 
   // ------------------------------------------------------------------ utils
@@ -76,11 +66,6 @@
     var s = D.STATES.filter(function (x) { return x.code === code; })[0];
     return s ? s.name : code;
   }
-  function ownershipInfo(type) { return OWNERSHIP[type] || null; }
-  function ownershipCatLabel(cat) {
-    var map = { public: "Public", private: "Private", "not-for-profit": "Not-for-profit", mixed: "Mixed" };
-    return map[cat] || cap(cat);
-  }
   function themeIdsOfNode(node) {
     if (node.type === "research_theme") return [node.id];
     return node.themes || [];
@@ -110,6 +95,17 @@
   function filterGroupHTML(title, items, opts) {
     opts = opts || {};
     var threshold = opts.threshold;
+    var collapsible = opts.collapsible;
+    var activeCount = items.filter(function (it) { return it.active; }).length;
+    var headerHTML;
+    if (collapsible) {
+      var open = state.openFilterGroups.has(title);
+      headerHTML = '<button class="filter-group-toggle" data-filter-group="' + esc(title) + '" aria-expanded="' + open + '">' +
+        "<span>" + esc(title) + (activeCount ? " (" + activeCount + ")" : "") + '</span><span class="fg-chevron">' + (open ? "▾" : "▸") + "</span></button>";
+      if (!open) return '<div class="filter-group" data-group-title="' + esc(title) + '">' + headerHTML + "</div>";
+    } else {
+      headerHTML = "<h4>" + esc(title) + "</h4>";
+    }
     var visible = items;
     var moreCount = 0;
     if (threshold && !opts.expanded && items.length > threshold) {
@@ -122,7 +118,7 @@
     } else if (threshold && opts.expanded && items.length > threshold) {
       chips += '<button class="chip-more" data-more-group="' + esc(title) + '">Show less</button>';
     }
-    return '<div class="filter-group"><h4>' + esc(title) + '</h4><div class="chip-row">' + chips + "</div></div>";
+    return '<div class="filter-group" data-group-title="' + esc(title) + '">' + headerHTML + '<div class="chip-row">' + chips + "</div></div>";
   }
   function themeFilterGroupHTML(themeItems) {
     var byDomain = {};
@@ -142,7 +138,7 @@
         (expanded ? '<div class="chip-row">' + g.items.map(function (it) { return chipHTML(it.value, it.label, it.active); }).join("") + "</div>" : "") +
         "</div>";
     }).join("");
-    return '<div class="filter-group"><h4>Research theme</h4>' + groups + "</div>";
+    return '<div class="filter-group" data-group-title="Research theme"><h4>Research theme</h4>' + groups + "</div>";
   }
 
   // ------------------------------------------------------------- search/filter
@@ -162,19 +158,14 @@
       if (!tids.some(function (t) { return f.themes.has(t); })) return false;
     }
     if (f.collab.size && (!node.collaborationSignal || !f.collab.has(node.collaborationSignal))) return false;
-    if (f.confidence.size && !f.confidence.has(node.dataConfidence)) return false;
-    if (f.ownership.size) {
-      var oi = ownershipInfo(node.type);
-      if (!oi || !f.ownership.has(oi.cat)) return false;
-    }
     return true;
   }
   function resetDirFilters() {
-    state.dirFilters = { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set(), confidence: new Set(), ownership: new Set() };
+    state.dirFilters = { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set() };
   }
   var GROUP_TITLE_TO_KEY = {
     "Actor type": "types", "State / territory": "states", Sector: "sectors",
-    "Research theme": "themes", "Collaboration intensity": "collab", "Data confidence": "confidence", "Ownership type": "ownership",
+    "Research theme": "themes", "Collaboration intensity": "collab",
   };
 
   // ------------------------------------------------------------------ views
@@ -228,23 +219,19 @@
     var sectorItems = allSectors().map(function (s) { return { value: s, label: cap(s), active: f.sectors.has(s) }; });
     var themeItems = D.themeNodes.map(function (t) { return { value: t.id, label: t.name, active: f.themes.has(t.id) }; });
     var collabItems = ["high", "medium", "low"].map(function (c) { return { value: c, label: cap(c), active: f.collab.has(c) }; });
-    var confItems = Object.keys(D.CONFIDENCE_META).map(function (c) { return { value: c, label: D.CONFIDENCE_META[c].label, active: f.confidence.has(c) }; });
-    var ownershipItems = ["public", "private", "not-for-profit", "mixed"].map(function (c) { return { value: c, label: ownershipCatLabel(c), active: f.ownership.has(c) }; });
 
     $("#dirFilterPanel").innerHTML =
-      filterGroupHTML("Actor type", typeItems, { threshold: 6, expanded: state.actorTypeFilterExpanded }) +
+      filterGroupHTML("Actor type", typeItems, { threshold: 6, expanded: state.actorTypeFilterExpanded, collapsible: true }) +
       filterGroupHTML("State / territory", stateItems) +
-      filterGroupHTML("Sector", sectorItems, { threshold: 8, expanded: state.sectorFilterExpanded }) +
+      filterGroupHTML("Sector", sectorItems, { threshold: 8, expanded: state.sectorFilterExpanded, collapsible: true }) +
       themeFilterGroupHTML(themeItems) +
       filterGroupHTML("Collaboration intensity", collabItems) +
-      filterGroupHTML("Data confidence", confItems) +
-      filterGroupHTML("Ownership type", ownershipItems) +
       '<button class="btn-mini" id="dirResetBtn">Reset filters</button>';
 
     $$("#dirFilterPanel .chip").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var val = btn.dataset.value;
-        var groupTitle = btn.closest(".filter-group").querySelector("h4").textContent;
+        var groupTitle = btn.closest(".filter-group").dataset.groupTitle;
         var key = GROUP_TITLE_TO_KEY[groupTitle];
         if (key) toggleSetMember(f[key], val);
         renderDirFilterPanel();
@@ -256,6 +243,13 @@
         var g = btn.dataset.moreGroup;
         if (g === "Sector") state.sectorFilterExpanded = !state.sectorFilterExpanded;
         else if (g === "Actor type") state.actorTypeFilterExpanded = !state.actorTypeFilterExpanded;
+        renderDirFilterPanel();
+      });
+    });
+    $$("#dirFilterPanel .filter-group-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var title = btn.dataset.filterGroup;
+        if (state.openFilterGroups.has(title)) state.openFilterGroups.delete(title); else state.openFilterGroups.add(title);
         renderDirFilterPanel();
       });
     });
@@ -1041,13 +1035,15 @@
     } else if (action.view === "geo") {
       switchView("geo");
       if (action.stateCode) { state.selectedState = action.stateCode; renderGeo(); }
+    } else if (action.view === "directory") {
+      switchView("directory");
       if (action.themeCategoryId) {
         var cat = D.explorerCategories.filter(function (c) { return c.id === action.themeCategoryId; })[0];
         if (cat && cat.themeId) {
           state.netFilters.theme = cat.themeId;
           state.dirFilters.themes = new Set([cat.themeId]);
-          if (cat.domainId) state.openThemeDomains.add(cat.domainId);
-          renderThemeGrid();
+          renderDirFilterPanel();
+          renderDirectory();
         }
       }
     } else {
@@ -1155,7 +1151,6 @@
     });
     renderOfficeMarkers();
     renderRegionDetail();
-    renderThemeGrid();
   }
   function selectState(code) {
     state.selectedState = state.selectedState === code ? null : code;
@@ -1215,52 +1210,6 @@
       if (anchor) { state.centerNodeId = anchor; state.selectedNodeId = null; state.pathHighlight = null; switchView("network"); }
     });
   }
-  function themeCardHTML(c) {
-    var active = c.themeId && state.netFilters.theme === c.themeId;
-    return '<button class="theme-card' + (c.inPilot ? "" : " out-of-scope") + '" data-id="' + esc(c.id) + '" data-theme-id="' + esc(c.themeId || "") +
-      '" aria-pressed="' + (!!active) + '"' + (c.inPilot ? "" : " disabled") + '><div class="tc-name">' + esc(c.label) + '</div>' +
-      '<div class="tc-note">' + esc(c.note || (c.inPilot ? "In pilot scope" : "Out of pilot scope")) + "</div></button>";
-  }
-  function renderThemeGrid() {
-    var byDomain = {};
-    var order = [];
-    D.domains.forEach(function (d) { byDomain[d.id] = { domain: d, cats: [] }; order.push(d.id); });
-    D.explorerCategories.forEach(function (c) {
-      if (!byDomain[c.domainId]) { byDomain[c.domainId] = { domain: { id: c.domainId, label: c.domainId }, cats: [] }; order.push(c.domainId); }
-      byDomain[c.domainId].cats.push(c);
-    });
-
-    $("#themeGrid").innerHTML = order.map(function (domainId) {
-      var group = byDomain[domainId];
-      var expanded = state.openThemeDomains.has(domainId);
-      var activeCount = group.cats.filter(function (c) { return c.themeId && state.netFilters.theme === c.themeId; }).length;
-      return '<div class="domain-group"><button class="domain-card" data-domain="' + esc(domainId) + '" aria-expanded="' + expanded + '">' +
-        '<div class="dc-text"><div class="dc-name">' + esc(group.domain.label) + '</div><div class="dc-note">' +
-        group.cats.length + " theme" + (group.cats.length === 1 ? "" : "s") + (activeCount ? " · " + activeCount + " selected" : "") + "</div></div>" +
-        '<div class="dc-chevron">' + (expanded ? "▾" : "▸") + "</div></button>" +
-        (expanded ? '<div class="domain-themes">' + group.cats.map(themeCardHTML).join("") + "</div>" : "") + "</div>";
-    }).join("");
-
-    $$("#themeGrid .domain-card").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var id = btn.dataset.domain;
-        if (state.openThemeDomains.has(id)) state.openThemeDomains.delete(id); else state.openThemeDomains.add(id);
-        renderThemeGrid();
-      });
-    });
-    $$("#themeGrid .theme-card").forEach(function (btn) {
-      if (btn.disabled) return;
-      btn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        var themeId = btn.dataset.themeId;
-        if (!themeId) return;
-        if (state.netFilters.theme === themeId) { state.netFilters.theme = null; state.dirFilters.themes.delete(themeId); }
-        else { state.netFilters.theme = themeId; state.dirFilters.themes = new Set([themeId]); }
-        renderThemeGrid();
-      });
-    });
-  }
-
   // -------------------------------------------------------------- insights
   function insightCard(title, bodyHTML) { return '<div class="insight-card"><h3>' + esc(title) + "</h3>" + bodyHTML + "</div>"; }
   function insightClustersHTML(clusters) {

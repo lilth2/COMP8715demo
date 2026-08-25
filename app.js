@@ -26,7 +26,7 @@
   var state = {
     view: "overview",
     search: "",
-    dirFilters: { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set(), confidence: new Set(), decarbOnly: false, ownership: new Set() },
+    dirFilters: { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set(), confidence: new Set(), ownership: new Set() },
     netFilters: { relTypes: new Set(Object.keys(D.RELATIONSHIP_META)), theme: null },
     hop: 2,
     centerNodeId: "decarbonisation",
@@ -42,6 +42,7 @@
     openThemeDomains: new Set(),
     openFilterDomains: new Set(D.domains.map(function (d) { return d.id; })),
     sectorFilterExpanded: false,
+    actorTypeFilterExpanded: false,
     selectedOffice: null,
   };
 
@@ -83,10 +84,6 @@
   function themeIdsOfNode(node) {
     if (node.type === "research_theme") return [node.id];
     return node.themes || [];
-  }
-  function isDecarbRelevant(node) {
-    if (node.type === "research_theme") return node.id === "decarbonisation";
-    return (node.themes || []).indexOf("decarbonisation") !== -1;
   }
   function allSectors() {
     var s = new Set();
@@ -166,7 +163,6 @@
     }
     if (f.collab.size && (!node.collaborationSignal || !f.collab.has(node.collaborationSignal))) return false;
     if (f.confidence.size && !f.confidence.has(node.dataConfidence)) return false;
-    if (f.decarbOnly && !isDecarbRelevant(node)) return false;
     if (f.ownership.size) {
       var oi = ownershipInfo(node.type);
       if (!oi || !f.ownership.has(oi.cat)) return false;
@@ -174,7 +170,7 @@
     return true;
   }
   function resetDirFilters() {
-    state.dirFilters = { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set(), confidence: new Set(), decarbOnly: false, ownership: new Set() };
+    state.dirFilters = { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set(), confidence: new Set(), ownership: new Set() };
   }
   var GROUP_TITLE_TO_KEY = {
     "Actor type": "types", "State / territory": "states", Sector: "sectors",
@@ -236,26 +232,21 @@
     var ownershipItems = ["public", "private", "not-for-profit", "mixed"].map(function (c) { return { value: c, label: ownershipCatLabel(c), active: f.ownership.has(c) }; });
 
     $("#dirFilterPanel").innerHTML =
-      filterGroupHTML("Actor type", typeItems) +
+      filterGroupHTML("Actor type", typeItems, { threshold: 6, expanded: state.actorTypeFilterExpanded }) +
       filterGroupHTML("State / territory", stateItems) +
       filterGroupHTML("Sector", sectorItems, { threshold: 8, expanded: state.sectorFilterExpanded }) +
       themeFilterGroupHTML(themeItems) +
       filterGroupHTML("Collaboration intensity", collabItems) +
       filterGroupHTML("Data confidence", confItems) +
-      '<div class="filter-group"><h4>Decarbonisation relevance</h4><div class="chip-row">' +
-      chipHTML("decarb-only", "Decarbonisation-relevant only", f.decarbOnly) + "</div></div>" +
       filterGroupHTML("Ownership type", ownershipItems) +
       '<button class="btn-mini" id="dirResetBtn">Reset filters</button>';
 
     $$("#dirFilterPanel .chip").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var val = btn.dataset.value;
-        if (val === "decarb-only") { f.decarbOnly = !f.decarbOnly; }
-        else {
-          var groupTitle = btn.closest(".filter-group").querySelector("h4").textContent;
-          var key = GROUP_TITLE_TO_KEY[groupTitle];
-          if (key) toggleSetMember(f[key], val);
-        }
+        var groupTitle = btn.closest(".filter-group").querySelector("h4").textContent;
+        var key = GROUP_TITLE_TO_KEY[groupTitle];
+        if (key) toggleSetMember(f[key], val);
         renderDirFilterPanel();
         renderDirectory();
       });
@@ -264,6 +255,7 @@
       btn.addEventListener("click", function () {
         var g = btn.dataset.moreGroup;
         if (g === "Sector") state.sectorFilterExpanded = !state.sectorFilterExpanded;
+        else if (g === "Actor type") state.actorTypeFilterExpanded = !state.actorTypeFilterExpanded;
         renderDirFilterPanel();
       });
     });
@@ -370,7 +362,6 @@
       var matchedTheme = themeIdsOfNode(node).filter(function (x) { return f.themes.has(x); })[0];
       if (matchedTheme) reasons.push('Tagged with the selected research theme "' + esc(themeLabel(matchedTheme)) + '".');
     }
-    if (f.decarbOnly && isDecarbRelevant(node)) reasons.push("Flagged as decarbonisation-relevant.");
     reasons.push("Data confidence: " + esc((D.CONFIDENCE_META[node.dataConfidence] || {}).label || node.dataConfidence) + ".");
     if (node.sourceNotes && node.sourceNotes.length) reasons.push("Sources: " + node.sourceNotes.map(esc).join("; ") + ".");
     if (node.evidenceSnippet) reasons.push('Evidence: "' + esc(node.evidenceSnippet) + '"');

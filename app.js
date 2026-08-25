@@ -38,6 +38,11 @@
     shortlist: new Set(),
     transform: { x: 0, y: 0, k: 1 },
     walkthrough: { active: false, index: 0 },
+    expandedTagCards: new Set(),
+    openThemeDomains: new Set(),
+    openFilterDomains: new Set(D.domains.map(function (d) { return d.id; })),
+    sectorFilterExpanded: false,
+    selectedOffice: null,
   };
 
   // ------------------------------------------------------------------ utils
@@ -57,6 +62,14 @@
   function themeLabel(themeId) {
     var t = D.themeNodes.filter(function (x) { return x.id === themeId; })[0];
     return t ? t.name : cap(themeId);
+  }
+  var THEME_DOMAIN_MAP = null;
+  function themeDomainId(themeId) {
+    if (!THEME_DOMAIN_MAP) {
+      THEME_DOMAIN_MAP = {};
+      D.domains.forEach(function (d) { d.themeIds.forEach(function (t) { THEME_DOMAIN_MAP[t] = d.id; }); });
+    }
+    return THEME_DOMAIN_MAP[themeId] || null;
   }
   function stateName(code) {
     var s = D.STATES.filter(function (x) { return x.code === code; })[0];
@@ -97,9 +110,42 @@
     return '<button class="chip" data-value="' + esc(value) + '" aria-pressed="' + (active ? "true" : "false") + '">' +
       (dotColor ? '<span class="dot" style="background:' + dotColor + '"></span>' : "") + esc(label) + "</button>";
   }
-  function filterGroupHTML(title, items) {
-    return '<div class="filter-group"><h4>' + esc(title) + '</h4><div class="chip-row">' +
-      items.map(function (it) { return chipHTML(it.value, it.label, it.active); }).join("") + "</div></div>";
+  function filterGroupHTML(title, items, opts) {
+    opts = opts || {};
+    var threshold = opts.threshold;
+    var visible = items;
+    var moreCount = 0;
+    if (threshold && !opts.expanded && items.length > threshold) {
+      visible = items.slice(0, threshold);
+      moreCount = items.length - threshold;
+    }
+    var chips = visible.map(function (it) { return chipHTML(it.value, it.label, it.active); }).join("");
+    if (moreCount > 0) {
+      chips += '<button class="chip-more" data-more-group="' + esc(title) + '">+' + moreCount + " more</button>";
+    } else if (threshold && opts.expanded && items.length > threshold) {
+      chips += '<button class="chip-more" data-more-group="' + esc(title) + '">Show less</button>';
+    }
+    return '<div class="filter-group"><h4>' + esc(title) + '</h4><div class="chip-row">' + chips + "</div></div>";
+  }
+  function themeFilterGroupHTML(themeItems) {
+    var byDomain = {};
+    var order = [];
+    D.domains.forEach(function (d) { byDomain[d.id] = { label: d.label, items: [] }; order.push(d.id); });
+    themeItems.forEach(function (it) {
+      var dId = themeDomainId(it.value) || "other";
+      if (!byDomain[dId]) { byDomain[dId] = { label: "Other", items: [] }; order.push(dId); }
+      byDomain[dId].items.push(it);
+    });
+    var groups = order.filter(function (id) { return byDomain[id].items.length; }).map(function (id) {
+      var g = byDomain[id];
+      var expanded = state.openFilterDomains.has(id);
+      var activeCount = g.items.filter(function (it) { return it.active; }).length;
+      return '<div class="filter-subgroup"><button class="filter-subgroup-toggle" data-filter-domain="' + esc(id) + '" aria-expanded="' + expanded + '">' +
+        "<span>" + esc(g.label) + (activeCount ? " (" + activeCount + ")" : "") + '</span><span class="fsg-chevron">' + (expanded ? "▾" : "▸") + "</span></button>" +
+        (expanded ? '<div class="chip-row">' + g.items.map(function (it) { return chipHTML(it.value, it.label, it.active); }).join("") + "</div>" : "") +
+        "</div>";
+    }).join("");
+    return '<div class="filter-group"><h4>Research theme</h4>' + groups + "</div>";
   }
 
   // ------------------------------------------------------------- search/filter
@@ -192,8 +238,8 @@
     $("#dirFilterPanel").innerHTML =
       filterGroupHTML("Actor type", typeItems) +
       filterGroupHTML("State / territory", stateItems) +
-      filterGroupHTML("Sector", sectorItems) +
-      filterGroupHTML("Research theme", themeItems) +
+      filterGroupHTML("Sector", sectorItems, { threshold: 8, expanded: state.sectorFilterExpanded }) +
+      themeFilterGroupHTML(themeItems) +
       filterGroupHTML("Collaboration intensity", collabItems) +
       filterGroupHTML("Data confidence", confItems) +
       '<div class="filter-group"><h4>Decarbonisation relevance</h4><div class="chip-row">' +
@@ -214,16 +260,47 @@
         renderDirectory();
       });
     });
+    $$("#dirFilterPanel .chip-more").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var g = btn.dataset.moreGroup;
+        if (g === "Sector") state.sectorFilterExpanded = !state.sectorFilterExpanded;
+        renderDirFilterPanel();
+      });
+    });
+    $$("#dirFilterPanel .filter-subgroup-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.dataset.filterDomain;
+        if (state.openFilterDomains.has(id)) state.openFilterDomains.delete(id); else state.openFilterDomains.add(id);
+        renderDirFilterPanel();
+      });
+    });
     var resetBtn = $("#dirResetBtn");
     if (resetBtn) resetBtn.addEventListener("click", function () { resetDirFilters(); renderDirFilterPanel(); renderDirectory(); });
+  }
+
+  var TAG_CAP = 4;
+
+  function resultTagsHTML(node) {
+    var allTags = (node.sectors || []).map(function (s) { return cap(s); })
+      .concat(themeIdsOfNode(node).map(function (t) { return themeLabel(t); }));
+    if (!allTags.length) return "";
+    var expanded = state.expandedTagCards.has(node.id);
+    var shown = expanded ? allTags : allTags.slice(0, TAG_CAP);
+    var hidden = allTags.length - shown.length;
+    var pills = shown.map(function (t) { return '<span class="tag-pill">' + esc(t) + "</span>"; }).join("");
+    if (hidden > 0) {
+      pills += '<button class="tag-pill tag-more" data-id="' + esc(node.id) + '">+' + hidden + "</button>";
+    } else if (expanded && allTags.length > TAG_CAP) {
+      pills += '<button class="tag-pill tag-more" data-id="' + esc(node.id) + '">Show less</button>';
+    }
+    return pills;
   }
 
   function resultCardHTML(node) {
     var meta = D.TYPE_META[node.type];
     var groupVar = GROUP_VAR[meta.group];
     var ink = meta.group === "concept" ? "var(--group-concept-ink)" : "#fff";
-    var tags = (node.sectors || []).map(function (s) { return '<span class="tag-pill">' + esc(cap(s)) + "</span>"; }).join("") +
-      themeIdsOfNode(node).map(function (t) { return '<span class="tag-pill">' + esc(themeLabel(t)) + "</span>"; }).join("");
+    var tags = resultTagsHTML(node);
     return '<div class="result-card" data-id="' + esc(node.id) + '">' +
       '<div class="rc-top"><button class="rc-name-btn" title="Open details">' + esc(node.name) + '</button>' +
       '<span class="rc-type-badge" style="background:var(' + groupVar + ');color:' + ink + ';">' + esc(meta.label) + "</span></div>" +
@@ -253,6 +330,14 @@
       resetDirFilters();
       renderDirFilterPanel();
       renderDirectory();
+    });
+    $$("#dirResultList .tag-more").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = btn.dataset.id;
+        if (state.expandedTagCards.has(id)) state.expandedTagCards.delete(id); else state.expandedTagCards.add(id);
+        renderDirectory();
+      });
     });
     $$("#dirResultList .result-card").forEach(function (card) {
       var id = card.dataset.id;
@@ -720,9 +805,21 @@
       '<div class="rc-meta-row"><span>Intensity: ' + esc(r.intensity) + "</span>" + confidenceBadgeHTML(r.confidence) + "</div>" +
       '<div class="rc-evidence">' + esc(r.evidence || "") + "</div></div>";
   }
+  function officeCardHTML(office) {
+    var roleLabel = office.role === "head" ? "Head office" : "Branch";
+    return '<div class="rel-card"><div><strong>' + esc(roleLabel) + "</strong> — " +
+      esc(office.city ? office.city + ", " : "") + esc(stateName(office.state)) + "</div>" +
+      (office.focus ? '<div class="rc-evidence">' + esc(office.focus) + "</div>" : "") + "</div>";
+  }
+  function officesHTML(offices) {
+    if (!offices || !offices.length) return "";
+    return '<div class="section-label" style="margin:6px 0 0;">Locations</div>' +
+      '<div class="field-grid">' + offices.map(officeCardHTML).join("") + "</div>";
+  }
   function orgBodyHTML(node) {
     return "<p>" + esc(node.summary || "") + '</p><dl class="field-grid">' +
       fieldRow("State", node.state ? esc(stateName(node.state)) : "") +
+      fieldRow("Chief Scientist", node.chiefScientist ? esc(node.chiefScientist) : "") +
       fieldRow("Sectors", (node.sectors || []).map(function (s) { return '<span class="tag-pill">' + esc(cap(s)) + "</span>"; }).join(" ")) +
       fieldRow("Research themes", (node.themes || []).map(function (t) { return '<span class="tag-pill">' + esc(themeLabel(t)) + "</span>"; }).join(" ")) +
       fieldRow("Host / partners", node.hostOrPartners ? esc(node.hostOrPartners) : "") +
@@ -733,6 +830,7 @@
       fieldRow("Data confidence", confidenceBadgeHTML(node.dataConfidence)) +
       fieldRow("Last updated", node.lastUpdated) + "</dl>" +
       (node.evidenceSnippet ? '<div class="rc-evidence">' + esc(node.evidenceSnippet) + "</div>" : "") +
+      officesHTML(node.offices) +
       drawerActionsHTML(node) +
       '<div class="section-label" style="margin:6px 0 0;">Mapped connections</div>' + connectionsHTML(node) +
       (node.sourceNotes && node.sourceNotes.length ? '<div class="drawer-note">Sources: ' + node.sourceNotes.map(esc).join("; ") + "</div>" : "");
@@ -957,6 +1055,7 @@
         if (cat && cat.themeId) {
           state.netFilters.theme = cat.themeId;
           state.dirFilters.themes = new Set([cat.themeId]);
+          if (cat.domainId) state.openThemeDomains.add(cat.domainId);
           renderThemeGrid();
         }
       }
@@ -1002,6 +1101,60 @@
   }
 
   // -------------------------------------------------------------- geography
+  var STATE_ANCHOR = { NT: [381.5, 161], WA: [205, 230], SA: [415, 345], QLD: [580, 200], NSW: [600, 410], VIC: [549, 470], TAS: [584, 570], ACT: [700, 428] };
+  function markerLayout(center, n) {
+    var cols = Math.min(n, 3);
+    var rows = Math.ceil(n / cols);
+    var spacing = 13;
+    var positions = [];
+    for (var i = 0; i < n; i++) {
+      var col = i % cols, row = Math.floor(i / cols);
+      positions.push([center[0] + (col - (cols - 1) / 2) * spacing, center[1] + (row - (rows - 1) / 2) * spacing]);
+    }
+    return positions;
+  }
+  function renderOfficeMarkers() {
+    var host = $("#officeMarkers");
+    if (!host) return;
+    host.innerHTML = "";
+    var byState = {};
+    D.actors.forEach(function (a) {
+      if (!a.offices || !a.offices.length) return;
+      a.offices.forEach(function (o, idx) {
+        (byState[o.state] || (byState[o.state] = [])).push({ actor: a, office: o, idx: idx });
+      });
+    });
+    Object.keys(byState).forEach(function (code) {
+      var anchor = STATE_ANCHOR[code];
+      if (!anchor) return;
+      var entries = byState[code];
+      var positions = markerLayout([anchor[0], anchor[1] + 22], entries.length);
+      entries.forEach(function (entry, i) {
+        var pos = positions[i];
+        var isHead = entry.office.role === "head";
+        var active = !!(state.selectedOffice && state.selectedOffice.actorId === entry.actor.id && state.selectedOffice.officeIdx === entry.idx);
+        var g = elSvg("g", {
+          class: "office-marker" + (isHead ? " office-head" : " office-branch") + (active ? " is-active" : ""),
+          "data-actor-id": entry.actor.id, "data-office-idx": entry.idx,
+          tabindex: "0", role: "button",
+          "aria-label": entry.actor.name + " " + (isHead ? "head office" : "branch") + (entry.office.city ? ", " + entry.office.city : ""),
+        });
+        g.appendChild(elSvg("circle", { class: "office-pin", cx: pos[0], cy: pos[1], r: isHead ? 5 : 3.5 }));
+        var titleText = entry.actor.name + " — " + (isHead ? "Head office" : "Branch") +
+          (entry.office.city ? ", " + entry.office.city : "") + (entry.office.focus ? ": " + entry.office.focus : "");
+        g.appendChild(elSvg("title", {}, titleText));
+        host.appendChild(g);
+      });
+    });
+  }
+  function selectOffice(actorId, officeIdx) {
+    var actor = nodeById(actorId);
+    if (!actor || !actor.offices || !actor.offices[officeIdx]) return;
+    var same = state.selectedOffice && state.selectedOffice.actorId === actorId && state.selectedOffice.officeIdx === officeIdx;
+    if (same) { state.selectedOffice = null; }
+    else { state.selectedOffice = { actorId: actorId, officeIdx: officeIdx }; state.selectedState = actor.offices[officeIdx].state || state.selectedState; }
+    renderGeo();
+  }
   function renderGeo() {
     $$("#auMap .au-state").forEach(function (g) {
       var code = g.dataset.code;
@@ -1009,11 +1162,13 @@
       g.classList.toggle("hotspot", !!region.decarbHotspot);
       g.setAttribute("aria-pressed", String(state.selectedState === code));
     });
+    renderOfficeMarkers();
     renderRegionDetail();
     renderThemeGrid();
   }
   function selectState(code) {
     state.selectedState = state.selectedState === code ? null : code;
+    state.selectedOffice = null;
     renderGeo();
   }
   function primaryActorForState(code) {
@@ -1028,6 +1183,25 @@
   }
   function renderRegionDetail() {
     var el = $("#regionDetail");
+    if (state.selectedOffice) {
+      var oActor = nodeById(state.selectedOffice.actorId);
+      var office = oActor && oActor.offices && oActor.offices[state.selectedOffice.officeIdx];
+      if (oActor && office) {
+        var roleLabel = office.role === "head" ? "Head office" : "Branch office";
+        el.innerHTML = '<div style="font-weight:700;margin-bottom:6px;">' + esc(oActor.name) + " — " + esc(roleLabel) + "</div>" +
+          "<div>" + esc(office.city ? office.city + ", " : "") + esc(stateName(office.state)) + "</div>" +
+          (office.focus ? '<div class="rc-evidence" style="margin-top:8px;">' + esc(office.focus) + "</div>" : "") +
+          (oActor.chiefScientist ? '<div style="margin-top:8px;">Chief Scientist: ' + esc(oActor.chiefScientist) + "</div>" : "") +
+          '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' +
+          '<button class="btn-mini" id="viewOfficeEntityBtn">Open full profile</button>' +
+          '<button class="btn-mini" id="clearOfficeBtn">Back to state overview</button></div>';
+        var openBtn = $("#viewOfficeEntityBtn");
+        if (openBtn) openBtn.addEventListener("click", function () { openEntity(oActor.id); });
+        var clearBtn = $("#clearOfficeBtn");
+        if (clearBtn) clearBtn.addEventListener("click", function () { state.selectedOffice = null; renderOfficeMarkers(); renderRegionDetail(); });
+        return;
+      }
+    }
     if (!state.selectedState) { el.innerHTML = "Select a state to see capability density, decarbonisation hotspot status, and collaboration links."; return; }
     var region = D.regions.filter(function (r) { return r.code === state.selectedState; })[0];
     if (!region) { el.innerHTML = "No data for this state in the pilot subset."; return; }
@@ -1050,16 +1224,43 @@
       if (anchor) { state.centerNodeId = anchor; state.selectedNodeId = null; state.pathHighlight = null; switchView("network"); }
     });
   }
+  function themeCardHTML(c) {
+    var active = c.themeId && state.netFilters.theme === c.themeId;
+    return '<button class="theme-card' + (c.inPilot ? "" : " out-of-scope") + '" data-id="' + esc(c.id) + '" data-theme-id="' + esc(c.themeId || "") +
+      '" aria-pressed="' + (!!active) + '"' + (c.inPilot ? "" : " disabled") + '><div class="tc-name">' + esc(c.label) + '</div>' +
+      '<div class="tc-note">' + esc(c.note || (c.inPilot ? "In pilot scope" : "Out of pilot scope")) + "</div></button>";
+  }
   function renderThemeGrid() {
-    $("#themeGrid").innerHTML = D.explorerCategories.map(function (c) {
-      var active = c.themeId && state.netFilters.theme === c.themeId;
-      return '<button class="theme-card' + (c.inPilot ? "" : " out-of-scope") + '" data-id="' + esc(c.id) + '" data-theme-id="' + esc(c.themeId || "") +
-        '" aria-pressed="' + (!!active) + '"' + (c.inPilot ? "" : " disabled") + '><div class="tc-name">' + esc(c.label) + '</div>' +
-        '<div class="tc-note">' + esc(c.note || (c.inPilot ? "In pilot scope" : "Out of pilot scope")) + "</div></button>";
+    var byDomain = {};
+    var order = [];
+    D.domains.forEach(function (d) { byDomain[d.id] = { domain: d, cats: [] }; order.push(d.id); });
+    D.explorerCategories.forEach(function (c) {
+      if (!byDomain[c.domainId]) { byDomain[c.domainId] = { domain: { id: c.domainId, label: c.domainId }, cats: [] }; order.push(c.domainId); }
+      byDomain[c.domainId].cats.push(c);
+    });
+
+    $("#themeGrid").innerHTML = order.map(function (domainId) {
+      var group = byDomain[domainId];
+      var expanded = state.openThemeDomains.has(domainId);
+      var activeCount = group.cats.filter(function (c) { return c.themeId && state.netFilters.theme === c.themeId; }).length;
+      return '<div class="domain-group"><button class="domain-card" data-domain="' + esc(domainId) + '" aria-expanded="' + expanded + '">' +
+        '<div class="dc-text"><div class="dc-name">' + esc(group.domain.label) + '</div><div class="dc-note">' +
+        group.cats.length + " theme" + (group.cats.length === 1 ? "" : "s") + (activeCount ? " · " + activeCount + " selected" : "") + "</div></div>" +
+        '<div class="dc-chevron">' + (expanded ? "▾" : "▸") + "</div></button>" +
+        (expanded ? '<div class="domain-themes">' + group.cats.map(themeCardHTML).join("") + "</div>" : "") + "</div>";
     }).join("");
+
+    $$("#themeGrid .domain-card").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.dataset.domain;
+        if (state.openThemeDomains.has(id)) state.openThemeDomains.delete(id); else state.openThemeDomains.add(id);
+        renderThemeGrid();
+      });
+    });
     $$("#themeGrid .theme-card").forEach(function (btn) {
       if (btn.disabled) return;
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
         var themeId = btn.dataset.themeId;
         if (!themeId) return;
         if (state.netFilters.theme === themeId) { state.netFilters.theme = null; state.dirFilters.themes.delete(themeId); }
@@ -1250,6 +1451,20 @@
       if (!g) return;
       e.preventDefault();
       selectState(g.dataset.code);
+    });
+    $("#officeMarkers").addEventListener("click", function (e) {
+      var g = e.target.closest(".office-marker");
+      if (!g) return;
+      e.stopPropagation();
+      selectOffice(g.dataset.actorId, Number(g.dataset.officeIdx));
+    });
+    $("#officeMarkers").addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var g = e.target.closest(".office-marker");
+      if (!g) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectOffice(g.dataset.actorId, Number(g.dataset.officeIdx));
     });
 
     $("#tabbar").addEventListener("click", function (e) {

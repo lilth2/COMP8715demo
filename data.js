@@ -69,26 +69,36 @@ window.RD_DATA = (function () {
   const actors = [
     {
       id: "hilt-crc", name: "Heavy Industry Low-carbon Transition CRC", type: "crc", state: "VIC",
-      sectors: ["Manufacturing", "Heavy Industry"], themes: ["decarbonisation", "industrial-heat", "advanced-manufacturing"],
+      sectors: ["Manufacturing"], themes: ["decarbonisation", "industrial-heat", "advanced-manufacturing"],
       summary: "Illustrative CRC coordinating heavy-industry decarbonisation research across steel, cement and aluminium value chains.",
       hostOrPartners: "Lead host: consortium of manufacturers and universities (illustrative)",
       activeInitiatives: ["Low-carbon industrial heat pilots", "Steel value-chain emissions mapping"],
       industryPartners: ["pilbara-cluster"],
       relatedFacilities: ["anff"],
       collaborationSignal: "high",
+      chiefScientist: "Prof. A. Ibrahim, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "VIC", city: "Melbourne", focus: "Corporate governance and cross-sector program coordination (illustrative)." },
+        { role: "branch", state: "WA", city: "Perth", focus: "Pilbara heavy-industry pilot liaison (illustrative)." },
+      ],
       dataConfidence: "public-source", lastUpdated: "2026-03-04",
       sourceNotes: ["CRC public program page (illustrative)"],
       evidenceSnippet: "Public program materials describe a national heavy-industry decarbonisation focus.",
     },
     {
       id: "fbi-crc", name: "Future Battery Industries CRC", type: "crc", state: "WA",
-      sectors: ["Battery Manufacturing", "Critical Minerals"], themes: ["battery-storage", "battery-recycling", "critical-minerals"],
+      sectors: ["Manufacturing", "Critical Minerals"], themes: ["battery-storage", "battery-recycling", "critical-minerals"],
       summary: "Illustrative CRC building an end-to-end Australian battery industry, from mineral processing to cell manufacturing and recycling.",
       hostOrPartners: "Lead host: university and industry consortium (illustrative)",
       activeInitiatives: ["Battery Recycling Pilot Program", "Cathode precursor pilot line"],
       industryPartners: ["pilbara-cluster"],
       relatedFacilities: ["anff", "pawsey"],
       collaborationSignal: "high",
+      chiefScientist: "Prof. L. Chen, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "WA", city: "Perth", focus: "Battery industry program leadership and mineral-processing partnerships (illustrative)." },
+        { role: "branch", state: "SA", city: "Adelaide", focus: "Cathode precursor pilot line at Tonsley Innovation District (illustrative)." },
+      ],
       dataConfidence: "verified", lastUpdated: "2026-05-18",
       sourceNotes: ["CRC public directory entry (illustrative)"],
       evidenceSnippet: "Program scope statement lists battery manufacturing and recycling as core themes.",
@@ -102,26 +112,35 @@ window.RD_DATA = (function () {
       industryPartners: ["pilbara-cluster"],
       relatedFacilities: [],
       collaborationSignal: "medium",
+      chiefScientist: "Dr. M. Fitzgerald, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "VIC", city: "Melbourne", focus: "Carbon capture research program leadership and field-trial coordination (illustrative)." },
+      ],
       dataConfidence: "public-source", lastUpdated: "2025-11-22",
       sourceNotes: ["CRC public technical reports (illustrative)"],
       evidenceSnippet: "Technical reports describe field-scale CO2 storage trials in southeastern Australia.",
     },
     {
       id: "race2030-crc", name: "RACE for 2030 CRC", type: "crc", state: "NSW",
-      sectors: ["Energy", "Grid Services"], themes: ["grid-integration", "decarbonisation", "climate-adaptation"],
+      sectors: ["Energy"], themes: ["grid-integration", "decarbonisation", "climate-adaptation"],
       summary: "Illustrative CRC researching reliable, affordable, clean energy transitions for households, businesses and communities.",
       hostOrPartners: "Lead host: multi-university and utility consortium (illustrative)",
       activeInitiatives: ["Distributed energy resource integration studies", "Regional net-zero pathways"],
       industryPartners: [],
       relatedFacilities: ["nci"],
       collaborationSignal: "medium",
+      chiefScientist: "Prof. S. Kaur, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "NSW", city: "Sydney", focus: "Multi-university consortium coordination and utility partnerships (illustrative)." },
+        { role: "branch", state: "QLD", city: "Brisbane", focus: "Regional net-zero pathways research stream (illustrative)." },
+      ],
       dataConfidence: "verified", lastUpdated: "2026-01-30",
       sourceNotes: ["CRC public program summaries (illustrative)"],
       evidenceSnippet: "Program summaries reference grid-integration and community energy-transition research streams.",
     },
     {
       id: "anff", name: "Australian National Fabrication Facility", type: "ncris_facility", state: "ACT",
-      sectors: ["Advanced Manufacturing", "Materials"], themes: ["advanced-manufacturing", "battery-storage", "hydrogen-storage"],
+      sectors: ["Manufacturing", "Materials"], themes: ["advanced-manufacturing", "battery-storage", "hydrogen-storage"],
       summary: "Illustrative national fabrication network providing shared micro/nano-fabrication infrastructure to researchers and industry.",
       capability: "Micro- and nano-fabrication, materials prototyping across a distributed national node network.",
       accessModel: "Fee-for-service and merit-based access across partner nodes (illustrative).",
@@ -132,7 +151,7 @@ window.RD_DATA = (function () {
     },
     {
       id: "nci", name: "National Computational Infrastructure", type: "ncris_facility", state: "ACT",
-      sectors: ["Digital Infrastructure", "Research Computing"], themes: ["research-translation", "grid-integration", "digital-infrastructure"],
+      sectors: ["Digital Infrastructure"], themes: ["research-translation", "grid-integration", "digital-infrastructure"],
       summary: "Illustrative national high-performance computing facility supporting large-scale modelling and simulation.",
       capability: "High-performance computing and large-scale data services for research modelling workloads.",
       accessModel: "Allocation scheme via national merit and partner-share access (illustrative).",
@@ -154,52 +173,69 @@ window.RD_DATA = (function () {
     },
     {
       id: "csiro-energy", name: "CSIRO Energy", type: "government_agency", state: "ACT",
-      sectors: ["Energy", "Hydrogen"], themes: ["decarbonisation", "hydrogen-storage", "industrial-heat"],
+      sectors: ["Energy"], themes: ["decarbonisation", "hydrogen-storage", "industrial-heat"],
       summary: "Illustrative national science agency business unit researching low-emissions energy technologies.",
       hostOrPartners: "Commonwealth science agency (illustrative representation for demo purposes).",
       activeInitiatives: ["Hydrogen storage materials research", "Industrial heat electrification studies"],
       industryPartners: [],
       relatedFacilities: ["anff"],
       collaborationSignal: "high",
+      chiefScientist: "Dr. R. Thompson, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "ACT", city: "Canberra", focus: "National low-emissions energy research portfolio leadership (illustrative)." },
+        { role: "branch", state: "WA", city: "Perth", focus: "Hydrogen storage pilot integration with WA industry (illustrative)." },
+      ],
       dataConfidence: "verified", lastUpdated: "2026-06-10",
       sourceNotes: ["Public research portfolio pages (illustrative)"],
       evidenceSnippet: "Public portfolio pages list hydrogen storage and industrial decarbonisation research streams.",
     },
     {
       id: "anu-eci", name: "ANU Energy Change Institute", type: "university", state: "ACT",
-      sectors: ["Energy", "Grid Services"], themes: ["grid-integration", "decarbonisation"],
+      sectors: ["Energy"], themes: ["grid-integration", "decarbonisation"],
       summary: "Illustrative university research institute coordinating cross-disciplinary energy-transition research.",
       hostOrPartners: "Host: Australian National University (illustrative).",
       activeInitiatives: ["ANU Battery Storage and Grid Integration Program"],
       industryPartners: [],
       relatedFacilities: ["nci"],
       collaborationSignal: "medium",
+      chiefScientist: "Prof. D. Whitfield, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "ACT", city: "Canberra", focus: "Cross-disciplinary energy-transition research coordination (illustrative)." },
+      ],
       dataConfidence: "public-source", lastUpdated: "2025-10-08",
       sourceNotes: ["University research institute page (illustrative)"],
       evidenceSnippet: "Institute page lists grid-integration and storage as core research programs.",
     },
     {
       id: "unsw-hydrogen", name: "UNSW Hydrogen Energy Research Centre", type: "university", state: "NSW",
-      sectors: ["Energy", "Hydrogen"], themes: ["hydrogen-storage", "decarbonisation"],
+      sectors: ["Energy"], themes: ["hydrogen-storage", "decarbonisation"],
       summary: "Illustrative university research centre focused on hydrogen production, storage and utilisation.",
       hostOrPartners: "Host: University of New South Wales (illustrative).",
       activeInitiatives: ["Hydrogen storage materials testbed"],
       industryPartners: [],
       relatedFacilities: ["anff"],
       collaborationSignal: "medium",
+      chiefScientist: "Prof. H. Nakamura, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "NSW", city: "Sydney", focus: "Hydrogen production and storage testbed leadership (illustrative)." },
+      ],
       dataConfidence: "needs-review", lastUpdated: "2025-06-19",
       sourceNotes: ["University centre page (illustrative, last verified over a year ago)"],
       evidenceSnippet: "Centre page describes hydrogen storage testbeds; profile has not been re-verified recently.",
     },
     {
       id: "monash-energy", name: "Monash Energy Institute", type: "university", state: "VIC",
-      sectors: ["Energy", "Battery Manufacturing"], themes: ["battery-storage", "decarbonisation"],
+      sectors: ["Energy", "Manufacturing"], themes: ["battery-storage", "decarbonisation"],
       summary: "Illustrative university institute researching battery materials and energy-system decarbonisation.",
       hostOrPartners: "Host: Monash University (illustrative).",
       activeInitiatives: ["Battery materials degradation research"],
       industryPartners: [],
       relatedFacilities: [],
       collaborationSignal: "low",
+      chiefScientist: "Dr. E. Osei, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "VIC", city: "Melbourne", focus: "Battery-materials research group leadership (illustrative)." },
+      ],
       dataConfidence: "public-source", lastUpdated: "2025-08-27",
       sourceNotes: ["University institute page (illustrative)"],
       evidenceSnippet: "Institute page lists battery-materials research groups among its programs.",
@@ -213,26 +249,36 @@ window.RD_DATA = (function () {
       industryPartners: [],
       relatedFacilities: [],
       collaborationSignal: "medium",
+      chiefScientist: "Dr. J. Alavi, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "NSW", city: "Sydney", focus: "Clean-energy investment portfolio leadership (illustrative)." },
+        { role: "branch", state: "VIC", city: "Melbourne", focus: "Co-finance regional origination office (illustrative)." },
+      ],
       dataConfidence: "verified", lastUpdated: "2026-02-11",
       sourceNotes: ["Public investment portfolio summaries (illustrative)"],
       evidenceSnippet: "Portfolio summaries reference co-financing of CRC-linked decarbonisation projects.",
     },
     {
       id: "nzea", name: "Net Zero Economy Agency", type: "government_agency", state: "VIC",
-      sectors: ["Policy", "Regional Transition"], themes: ["decarbonisation", "climate-adaptation"],
+      sectors: ["Policy & Regional Transition"], themes: ["decarbonisation", "climate-adaptation"],
       summary: "Illustrative government agency coordinating regional and industrial net-zero transition support.",
       hostOrPartners: "Commonwealth agency (illustrative representation for demo purposes).",
       activeInitiatives: ["Regional transition planning support"],
       industryPartners: [],
       relatedFacilities: [],
       collaborationSignal: "low",
+      chiefScientist: "Prof. C. Reyes, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "VIC", city: "Melbourne", focus: "National transition strategy and program leadership (illustrative)." },
+        { role: "branch", state: "QLD", city: "Brisbane", focus: "Regional transition planning support (illustrative)." },
+      ],
       dataConfidence: "public-source", lastUpdated: "2025-07-30",
       sourceNotes: ["Public agency briefings (illustrative)"],
       evidenceSnippet: "Agency briefings describe support for regional industrial transition planning.",
     },
     {
       id: "tonsley", name: "Tonsley Innovation District", type: "technology_precinct", state: "SA",
-      sectors: ["Advanced Manufacturing", "Battery Manufacturing"], themes: ["advanced-manufacturing", "battery-storage"],
+      sectors: ["Manufacturing"], themes: ["advanced-manufacturing", "battery-storage"],
       summary: "Illustrative innovation precinct hosting advanced-manufacturing and clean-technology tenants.",
       capability: "Co-located manufacturing, prototyping and start-up tenancy space.",
       accessModel: "Precinct tenancy and partnership model (illustrative).",
@@ -243,24 +289,33 @@ window.RD_DATA = (function () {
     },
     {
       id: "cicada", name: "Cicada Innovations", type: "incubator_accelerator", state: "NSW",
-      sectors: ["Deep Tech", "Research Translation"], themes: ["research-translation", "decarbonisation"],
+      sectors: ["Deep Tech & Research Translation"], themes: ["research-translation", "decarbonisation"],
       summary: "Illustrative deep-tech incubator supporting translation of university and CRC research into start-ups.",
       capability: "Incubation, mentoring and lab-adjacent workspace for deep-tech ventures.",
       accessModel: "Cohort-based incubation program (illustrative).",
       relatedFacilities: [],
+      chiefScientist: "Dr. N. Petrov, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "NSW", city: "Sydney", focus: "Deep-tech cohort program leadership (illustrative)." },
+        { role: "branch", state: "VIC", city: "Melbourne", focus: "Cohort expansion and mentoring network (illustrative)." },
+      ],
       dataConfidence: "public-source", lastUpdated: "2025-09-02",
       sourceNotes: ["Incubator public program page (illustrative)"],
       evidenceSnippet: "Program page lists clean-technology ventures among current cohorts.",
     },
     {
       id: "pilbara-cluster", name: "Pilbara Industry Partner Cluster", type: "industry_partner", state: "WA",
-      sectors: ["Mining", "Heavy Industry"], themes: ["critical-minerals", "industrial-heat", "decarbonisation"],
+      sectors: ["Critical Minerals", "Manufacturing"], themes: ["critical-minerals", "industrial-heat", "decarbonisation"],
       summary: "Illustrative cluster of resources and heavy-industry partners collaborating on decarbonisation trials in the Pilbara region.",
       hostOrPartners: "Industry cluster (illustrative aggregation for demo purposes).",
       activeInitiatives: ["Off-grid renewable haulage trial"],
       industryPartners: [],
       relatedFacilities: ["pawsey"],
       collaborationSignal: "medium",
+      chiefScientist: "Dr. F. Nguyen, Chief Scientist (illustrative)",
+      offices: [
+        { role: "head", state: "WA", city: "Karratha", focus: "Pilbara regional decarbonisation trial coordination (illustrative)." },
+      ],
       dataConfidence: "inferred", lastUpdated: "2025-04-21",
       sourceNotes: ["Aggregated from public industry announcements (illustrative, relationship inferred)"],
       evidenceSnippet: "Public announcements reference regional decarbonisation trials; specific CRC linkages are inferred for this demo.",
@@ -543,18 +598,47 @@ window.RD_DATA = (function () {
   };
 
   // ---------------------------------------------------------------------
-  // Sector / Theme Explorer top-level categories (broader than graph theme nodes)
+  // Domains: a top-level grouping above individual research themes. Adding
+  // a new field of R&D later (health, digital & AI, etc.) only means
+  // appending one more entry here — it does not add a flat pile of new
+  // theme chips to every filter / explorer view across the app.
   // ---------------------------------------------------------------------
-  const explorerCategories = [
-    { id: "decarbonisation", label: "Decarbonisation", themeId: "decarbonisation", inPilot: true },
-    { id: "grid-integration", label: "Grid integration", themeId: "grid-integration", inPilot: true },
-    { id: "hydrogen", label: "Hydrogen", themeId: "hydrogen-storage", inPilot: true },
-    { id: "critical-minerals", label: "Critical minerals", themeId: "critical-minerals", inPilot: true },
-    { id: "battery-storage", label: "Battery storage", themeId: "battery-storage", inPilot: true },
-    { id: "carbon-capture", label: "Carbon capture", themeId: "carbon-capture", inPilot: true },
-    { id: "advanced-manufacturing", label: "Advanced manufacturing", themeId: "advanced-manufacturing", inPilot: true, note: "Tagged across CRC, NCRIS-facility and precinct profiles (no dedicated theme node yet)." },
-    { id: "digital-infrastructure", label: "Digital infrastructure", themeId: "digital-infrastructure", inPilot: true, note: "National Computational Infrastructure and Pawsey Supercomputing Research Centre." },
+  const domains = [
+    {
+      id: "decarbonisation-energy", label: "Decarbonisation & Energy",
+      themeIds: ["decarbonisation", "grid-integration", "hydrogen-storage", "critical-minerals", "battery-storage", "carbon-capture"],
+    },
   ];
+
+  // A few categories use a shorter label/id than their underlying theme node
+  // (e.g. theme "Hydrogen Storage" shows as the "Hydrogen" explorer chip).
+  const CATEGORY_LABEL_OVERRIDES = {
+    "hydrogen-storage": { id: "hydrogen", label: "Hydrogen" },
+  };
+
+  // ---------------------------------------------------------------------
+  // Sector / Theme Explorer top-level categories — derived from `domains`,
+  // plus a small number of sector-linked categories with no dedicated
+  // theme node yet.
+  // ---------------------------------------------------------------------
+  const explorerCategories = domains.reduce((acc, domain) => {
+    domain.themeIds.forEach((themeId) => {
+      const theme = themeNodes.filter((t) => t.id === themeId)[0];
+      if (!theme) return;
+      const ov = CATEGORY_LABEL_OVERRIDES[themeId];
+      acc.push({
+        id: ov ? ov.id : themeId,
+        label: ov ? ov.label : theme.name,
+        themeId: themeId,
+        domainId: domain.id,
+        inPilot: true,
+      });
+    });
+    return acc;
+  }, []).concat([
+    { id: "advanced-manufacturing", label: "Advanced manufacturing", themeId: "advanced-manufacturing", domainId: "decarbonisation-energy", inPilot: true, note: "Tagged across CRC, NCRIS-facility and precinct profiles (no dedicated theme node yet)." },
+    { id: "digital-infrastructure", label: "Digital infrastructure", themeId: "digital-infrastructure", domainId: "decarbonisation-energy", inPilot: true, note: "National Computational Infrastructure and Pawsey Supercomputing Research Centre." },
+  ]);
 
   // ---------------------------------------------------------------------
   // Data Trust / sources
@@ -588,7 +672,7 @@ window.RD_DATA = (function () {
   };
 
   return {
-    TYPE_META, RELATIONSHIP_META, CONFIDENCE_META, STATES,
+    TYPE_META, RELATIONSHIP_META, CONFIDENCE_META, STATES, domains,
     actors, themeNodes, projectNodes, allNodes, relationships,
     regions, questions, insights, explorerCategories, sources, walkthrough,
   };

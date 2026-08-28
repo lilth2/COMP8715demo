@@ -34,6 +34,7 @@
     actorTypeFilterExpanded: false,
     selectedOffice: null,
     openFilterGroups: new Set(["Actor type", "Sector"]),
+    activeEdgeId: null,
   };
 
   // ------------------------------------------------------------------ utils
@@ -492,9 +493,10 @@
       if (!nodeSet.has(r.sourceId) || !nodeSet.has(r.targetId)) return;
       var p1 = layout.positions.get(r.sourceId), p2 = layout.positions.get(r.targetId);
       if (!p1 || !p2) return;
-      var classes = ["edge-group"];
+      var classes = ["edge-group", "intensity-" + (r.intensity || "medium")];
       if (ph) { classes.push(ph.edgeIds.has(r.id) ? "path-hi" : "dimmed"); }
       else if (state.selectedNodeId && (r.sourceId === state.selectedNodeId || r.targetId === state.selectedNodeId)) { classes.push("focused"); }
+      if (state.activeEdgeId === r.id) classes.push("label-active");
       var g = elSvg("g", { class: classes.join(" "), "data-edge-id": r.id });
       var line = elSvg("line", { class: "edge-line", x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
       if (r.confidence === "needs-review" || r.confidence === "stale" || r.type === "potential_connection") {
@@ -506,7 +508,7 @@
       var tw = textWidth(label, 9.5);
       g.appendChild(elSvg("rect", { class: "edge-label-bg", x: mx - tw / 2 - 3, y: my - 7, width: tw + 6, height: 13, rx: 3 }));
       g.appendChild(elSvg("text", { class: "edge-label-text", x: mx, y: my + 3, "text-anchor": "middle" }, label));
-      g.addEventListener("click", function (e) { e.stopPropagation(); showWhy(e, relationshipWhyHTML(r)); });
+      g.addEventListener("click", function (e) { e.stopPropagation(); state.activeEdgeId = r.id; renderGraph(); showWhy(e, relationshipWhyHTML(r)); });
       edgesLayer.appendChild(g);
     });
 
@@ -699,7 +701,9 @@
       '<div class="row"><span class="sw" style="background:var(--group-infrastructure);"></span>Infrastructure (NCRIS facility / precinct)</div>' +
       '<div class="row"><span class="sw" style="background:var(--group-industry);"></span>Industry &amp; government</div>' +
       '<div class="row"><span class="sw concept" style="background:var(--group-concept);"></span>Theme / project (shape-coded)</div>' +
-      "</div></div>";
+      "</div>" +
+      '<p style="font-size:11px;color:var(--ink-muted);margin:10px 0 0;">Line thickness/opacity reflects collaboration intensity (weak/medium/strong). Relationship-type labels are hidden by default — hover or select an edge to reveal one.</p>' +
+      "</div>";
     $("#netCenterSelect").addEventListener("change", function (e) {
       state.centerNodeId = e.target.value; state.selectedNodeId = null; state.pathHighlight = null;
       renderGraph(); renderNetActions();
@@ -749,7 +753,7 @@
     window.addEventListener("mouseup", function () {
       if (pan.active && !pan.moved) {
         if (state.explainMode) { state.explainMode = false; state.explainFirst = null; resetNetHint(); updateExplainBanner(); }
-        else if (state.selectedNodeId) { state.selectedNodeId = null; renderGraph(); renderNetActions(); }
+        else if (state.selectedNodeId || state.activeEdgeId) { state.selectedNodeId = null; state.activeEdgeId = null; renderGraph(); renderNetActions(); }
       }
       pan.active = false;
       svgEl.classList.remove("panning");
@@ -1151,6 +1155,27 @@
     });
     renderOfficeMarkers();
     renderRegionDetail();
+    renderGeoThemes();
+  }
+  function renderGeoThemes() {
+    var panel = $("#geoThemePanel");
+    if (!panel) return;
+    var themeItems = D.themeNodes.map(function (t) { return { value: t.id, label: t.name, active: false }; });
+    panel.innerHTML = themeFilterGroupHTML(themeItems);
+    $$("#geoThemePanel .chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var val = btn.dataset.value;
+        state.dirFilters.themes = new Set([val]);
+        switchView("directory");
+      });
+    });
+    $$("#geoThemePanel .filter-subgroup-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.dataset.filterDomain;
+        if (state.openFilterDomains.has(id)) state.openFilterDomains.delete(id); else state.openFilterDomains.add(id);
+        renderGeoThemes();
+      });
+    });
   }
   function selectState(code) {
     state.selectedState = state.selectedState === code ? null : code;
@@ -1238,7 +1263,8 @@
   }
   function insightMatrixHTML(s) {
     var max = Math.max.apply(null, [1].concat(s.matrix.reduce(function (a, row) { return a.concat(row); }, [])));
-    var html = '<div class="heat-grid" style="grid-template-columns:120px repeat(' + s.facilities.length + ',1fr);">';
+    var html = '<p style="font-size:11px;color:var(--ink-muted);margin:0 0 10px;">Each cell is the number of identified collaboration links between that CRC and that NCRIS facility; darker shading = a higher count relative to the strongest pair shown.</p>';
+    html += '<div class="heat-grid" style="grid-template-columns:120px repeat(' + s.facilities.length + ',1fr);">';
     html += "<div></div>" + s.facilities.map(function (f) { return '<div style="font-size:10px;color:var(--ink-muted);text-align:center;">' + esc(nodeName(f)) + "</div>"; }).join("");
     s.crcs.forEach(function (crcId, i) {
       html += '<div style="font-size:11px;color:var(--ink-secondary);display:flex;align-items:center;">' + esc(nodeName(crcId)) + "</div>";
@@ -1437,6 +1463,7 @@
     });
     $("#netResetBtn").addEventListener("click", function () {
       state.selectedNodeId = null; state.pathHighlight = null; state.explainMode = false; state.explainFirst = null;
+      state.activeEdgeId = null;
       state.transform = { x: 0, y: 0, k: 1 };
       applyTransform();
       resetNetHint();

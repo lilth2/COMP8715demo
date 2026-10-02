@@ -4,6 +4,15 @@
   var password = document.getElementById("password");
   var button = document.getElementById("loginButton");
   var errorBox = document.getElementById("loginError");
+  var pendingSetup = /\.github\.io$/.test(window.location.hostname) && !(window.RD_SITE_CONFIG || {}).apiBaseUrl;
+  if (pendingSetup) {
+    var statusBox = document.getElementById("loginStatus");
+    statusBox.textContent = "Administrator sign-in is being configured. Access will be available once setup is complete.";
+    statusBox.hidden = false;
+    button.disabled = true;
+    button.textContent = "Sign-in setup pending";
+    document.getElementById("loginHelp").textContent = "Please contact our project team for the next access update.";
+  }
   document.getElementById("togglePassword").addEventListener("click", function () {
     var visible = password.type === "password";
     password.type = visible ? "text" : "password";
@@ -13,6 +22,7 @@
   });
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
+    if (pendingSetup) return;
     errorBox.hidden = true;
     button.disabled = true;
     button.textContent = "Signing in…";
@@ -30,7 +40,7 @@
       button.textContent = "Sign in";
     }
   });
-  window.RD_ADMIN_AUTH.session().then(function (session) {
+  if (!pendingSetup) window.RD_ADMIN_AUTH.session().then(function (session) {
     if (session.authenticated) window.location.replace("admin.html");
   }).catch(function () { /* The form reports service errors on submit. */ });
 })();

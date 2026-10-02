@@ -22,7 +22,7 @@
     .field{margin:0 0 18px}.field label{display:block;font-size:12px;font-weight:600;margin-bottom:8px;color:#42536a}.field input{width:100%;border:1px solid #cbd5e0;padding:12px;border-radius:8px;color:var(--ink);background:#fff}
     .field input:focus{outline:3px solid #168a8020;border-color:var(--teal)}.password-wrap{position:relative}.password-wrap input{padding-right:65px}.reveal{position:absolute;right:8px;top:7px;bottom:7px;border:0;background:#eef3f7;border-radius:5px;padding:0 9px;font-size:11px;color:var(--navy);cursor:pointer}
     .submit{width:100%;padding:12px;border:0;border-radius:8px;background:var(--teal);color:#fff;font-weight:600;cursor:pointer}.submit:hover{background:#12766d}.submit:disabled{opacity:.6;cursor:wait}
-    .error{background:#fff1f1;border:1px solid #e9c7c7;border-radius:7px;padding:10px 12px;color:#a73c3c;line-height:1.5;margin-bottom:16px}.help{margin:18px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+    .error{background:#fff1f1;border:1px solid #e9c7c7;border-radius:7px;padding:10px 12px;color:#a73c3c;line-height:1.5;margin-bottom:16px}.status{background:#fff8ea;border:1px solid #ead8ae;border-radius:7px;padding:12px;color:#765415;line-height:1.6;margin-bottom:20px}.help{margin:18px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
     @media(max-width:650px){header{padding:16px 18px;font-size:12px}.brand{gap:8px}.card{grid-template-columns:1fr}.intro{padding:28px}.intro h1{font-size:24px;margin:16px 0 12px}.intro ul{display:none}.form-panel{padding:28px}main{padding:24px 16px}.back{white-space:normal;text-align:right}}
   </style>
 </head>
@@ -33,6 +33,7 @@
       <div class="intro"><span class="tag">Administrator access</span><h1>Manage the directory.</h1><p>Maintain organisation profiles, research projects and the evidence behind their connections.</p><ul><li>Organisation and project records</li><li>Relationships and data sources</li><li>Confidence and change history</li></ul></div>
       <div class="form-panel">
         <h2>Admin Login</h2><p class="subtitle">Sign in with the administrator account provided by our project team.</p>
+        <p class="status" id="loginStatus" role="status" hidden></p>
         <form id="loginForm">
           <div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required maxlength="100" autocapitalize="none" spellcheck="false" autofocus /></div>
           <div class="field"><label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024" /><button class="reveal" id="togglePassword" type="button" aria-label="Show password" aria-pressed="false">Show</button></div></div>

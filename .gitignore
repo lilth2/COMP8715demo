@@ -1,4 +1,5 @@
 .private/
+backend/.private/
 node_modules/
 *.log
 .env

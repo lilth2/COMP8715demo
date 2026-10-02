@@ -353,7 +353,8 @@
     });
 
     $("#resetBtn").addEventListener("click", async function () {
-      if (!window.confirm("Restore the original shared demo dataset? This affects all visitors.")) return;
+      var resetMessage = Auth.isDemo() ? "Restore the original demo dataset in this browser?" : "Restore the original shared demo dataset? This affects all visitors.";
+      if (!window.confirm(resetMessage)) return;
       try { await Store.reset(); showToast("Demo data restored."); renderAll(); }
       catch (error) { showToast(error.message, true); }
     });
@@ -364,11 +365,11 @@
   async function requireLogin() {
     try {
       var session = await window.RD_ADMIN_AUTH.session();
-      if (!session.authenticated) { window.location.replace("admin-login.html"); return false; }
-      $("#adminIdentity").textContent = session.username + " · Administrator";
+      if (!session.authenticated) { window.location.replace("login.html"); return false; }
+      $("#adminIdentity").textContent = session.username + (window.RD_ADMIN_AUTH.isDemo() ? " · Demo administrator" : " · Administrator");
       return true;
     } catch (error) {
-      window.location.replace("admin-login.html");
+      window.location.replace("login.html");
       return false;
     }
   }
@@ -376,11 +377,16 @@
     this.disabled = true;
     try {
       await window.RD_ADMIN_AUTH.logout();
-      window.location.replace("admin-login.html");
+      window.location.replace("login.html");
     } catch (error) { showToast(error.message, true); this.disabled = false; }
   });
   requireLogin().then(async function (allowed) {
     if (!allowed) return;
+    if (window.RD_ADMIN_AUTH.isDemo()) {
+      $(".notice").textContent = "Sprint demo mode: changes affect only synthetic data saved in this browser. This login is for demonstration and does not secure real management data.";
+      $(".side-note").innerHTML = "<strong>Demo workspace</strong>Changes are saved in this browser. Export JSON to keep a copy before clearing browser data.";
+      $("#page-history .page-head p").textContent = "Browser-local history of changes to the synthetic demonstration dataset.";
+    }
     if (!await Store.ready) {
       document.body.classList.remove("auth-pending");
       $(".shell").style.display = "none";

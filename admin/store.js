@@ -30,6 +30,10 @@
     window.dispatchEvent(new CustomEvent("rd-admin-data-changed"));
   }
   async function change(operation, value, id) {
+    if (Auth.isDemo()) {
+      apply(await window.RD_DEMO_STORE.change(operation, value, id));
+      return clone(state);
+    }
     apply(await Auth.request("api/admin/action", { operation: operation, value: value, id: id }));
     return clone(state);
   }
@@ -61,8 +65,9 @@
     reset: function () { return change("reset"); },
     importState: function (value) { return change("importState", value); }
   };
-  var isAdmin = /\/admin\.html$/.test(window.location.pathname);
-  store.ready = Auth.request(isAdmin ? "api/admin/dataset" : "api/dataset").then(function (value) {
+  var isAdmin = /\/admin\/(?:index\.html)?$/.test(window.location.pathname);
+  store.ready = (Auth.isDemo() ? Promise.resolve(window.RD_DEMO_STORE.snapshot()) : Auth.request(isAdmin ? "api/admin/dataset" : "api/dataset")).then(function (value) {
+    if (!isAdmin) value.audit = [];
     apply(value); return true;
   }).catch(function (error) {
     store.loadError = error.message;
@@ -73,4 +78,7 @@
     return false;
   });
   window.RD_ADMIN_STORE = store;
+  if (Auth.isDemo()) window.addEventListener("storage", function (event) {
+    if (event.key === "rd-directory-demo-data-v1") apply(window.RD_DEMO_STORE.snapshot());
+  });
 })();

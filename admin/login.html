@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Administrator Login · Australian R&amp;D Intelligent Directory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root{--navy:#102e52;--teal:#168a80;--ink:#172536;--muted:#657487;--line:#dbe3ec}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;color:var(--ink);background:#f3f6f9;font:14px Rubik,"Segoe UI",sans-serif} button,input{font:inherit}
+    header{display:flex;align-items:center;justify-content:space-between;gap:24px;background:var(--navy);color:#fff;padding:20px 32px}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:600}.mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#7db4a5;color:var(--navy)}
+    .back{color:#e1edf8;text-decoration:none;white-space:nowrap}.back:hover{text-decoration:underline}
+    main{min-height:calc(100vh - 74px);display:grid;place-items:center;padding:48px 24px}
+    .card{display:grid;grid-template-columns:.9fr 1.1fr;max-width:850px;width:100%;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 55px #102e5212;overflow:hidden}
+    .intro{padding:42px 36px;background:linear-gradient(150deg,#173f6d,#102e52);color:#fff;display:flex;flex-direction:column;justify-content:center}
+    .tag{align-self:flex-start;color:#bde4dc;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;border:1px solid #78afa16b;border-radius:30px;padding:6px 10px}
+    .intro h1{font-size:29px;line-height:1.22;margin:24px 0 16px}.intro p{color:#c7d7e6;line-height:1.7;margin:0}.intro ul{padding-left:18px;line-height:1.9;color:#c7d7e6;margin:22px 0 0}
+    .form-panel{padding:42px 36px} h2{margin:0 0 9px;font-size:24px;color:var(--navy)}.subtitle{margin:0 0 26px;color:var(--muted);line-height:1.6}
+    .field{margin:0 0 18px}.field label{display:block;font-size:12px;font-weight:600;margin-bottom:8px;color:#42536a}.field input{width:100%;border:1px solid #cbd5e0;padding:12px;border-radius:8px;color:var(--ink);background:#fff}
+    .field input:focus{outline:3px solid #168a8020;border-color:var(--teal)}.password-wrap{position:relative}.password-wrap input{padding-right:65px}.reveal{position:absolute;right:8px;top:7px;bottom:7px;border:0;background:#eef3f7;border-radius:5px;padding:0 9px;font-size:11px;color:var(--navy);cursor:pointer}
+    .submit{width:100%;padding:12px;border:0;border-radius:8px;background:var(--teal);color:#fff;font-weight:600;cursor:pointer}.submit:hover{background:#12766d}.submit:disabled{opacity:.6;cursor:wait}
+    .error{background:#fff1f1;border:1px solid #e9c7c7;border-radius:7px;padding:10px 12px;color:#a73c3c;line-height:1.5;margin-bottom:16px}.status{background:#fff8ea;border:1px solid #ead8ae;border-radius:7px;padding:12px;color:#765415;line-height:1.6;margin-bottom:20px}.help{margin:18px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+    @media(max-width:650px){header{padding:16px 18px;font-size:12px}.brand{gap:8px}.card{grid-template-columns:1fr}.intro{padding:28px}.intro h1{font-size:24px;margin:16px 0 12px}.intro ul{display:none}.form-panel{padding:28px}main{padding:24px 16px}.back{white-space:normal;text-align:right}}
+  </style>
+</head>
+<body>
+  <header><span class="brand"><span class="mark" aria-hidden="true">◆</span>Australian R&amp;D Intelligent Directory</span><a class="back" href="../index.html">← Back to directory</a></header>
+  <main>
+    <section class="card" aria-label="Administrator sign in">
+      <div class="intro"><span class="tag">Administrator access</span><h1>Manage the directory.</h1><p>Maintain organisation profiles, research projects and the evidence behind their connections.</p><ul><li>Organisation and project records</li><li>Relationships and data sources</li><li>Confidence and change history</li></ul></div>
+      <div class="form-panel">
+        <h2>Admin Login</h2><p class="subtitle">Sign in with the administrator account provided by our project team.</p>
+        <p class="status" id="loginStatus" role="status" hidden></p>
+        <form id="loginForm">
+          <div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required maxlength="100" autocapitalize="none" spellcheck="false" autofocus /></div>
+          <div class="field"><label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024" /><button class="reveal" id="togglePassword" type="button" aria-label="Show password" aria-pressed="false">Show</button></div></div>
+          <p class="error" id="loginError" role="alert" hidden></p>
+          <button class="submit" id="loginButton" type="submit">Sign in</button>
+          <p class="help" id="loginHelp">Access is available through the initial administrator account. Please contact our project team if you need the credentials.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script src="../site-config.js"></script>
+  <script src="auth.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

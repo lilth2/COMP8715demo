@@ -17,4 +17,4 @@ const salt = randomBytes(32).toString("hex");
 fs.mkdirSync(accountDir, { recursive: true, mode: 0o700 });
 fs.writeFileSync(accountPath, JSON.stringify({ username, salt, passwordHash: scryptSync(password, salt, 64).toString("hex") }, null, 2), { mode: 0o600, flag: "wx" });
 fs.writeFileSync(path.join(accountDir, "INITIAL_ADMIN_CREDENTIALS.txt"), "Administrator username: " + username + "\nInitial password: " + password + "\n\nKeep this file private. It is excluded from Git.\n", { mode: 0o600, flag: "wx" });
-console.log("Initial administrator created. Credentials: .private/INITIAL_ADMIN_CREDENTIALS.txt");
+console.log("Initial administrator created. Credentials: backend/.private/INITIAL_ADMIN_CREDENTIALS.txt");

@@ -3,9 +3,9 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "setup:admin": "node setup-admin.js",
-    "start": "node server.js",
-    "test": "node --test tests/auth.test.js"
+    "setup:admin": "node backend/setup-admin.js",
+    "start": "node backend/server.js",
+    "test": "node --test backend/tests/auth.test.js backend/tests/demo.test.js"
   },
   "engines": { "node": ">=20" }
 }

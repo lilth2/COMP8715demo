@@ -1,6 +1,11 @@
-// Public configuration only. Never put passwords, service keys or database credentials here.
+// Public configuration. Demo login is only for synthetic data, not real access control.
 window.RD_SITE_CONFIG = {
-  // Set this to the HTTPS backend origin before publishing on GitHub Pages.
-  // Example: "https://your-directory-backend.example.org"
-  apiBaseUrl: ""
+  "apiBaseUrl": "",
+  "demoAccount": {
+    "enabled": true,
+    "username": "admin",
+    "salt": "1657a065a85ab5c0cfb0582d2d37ccffffa1fcabd54950a7",
+    "passwordHash": "bf800117f407b42e123d4b878980a815213e710aafbbe89a09bcc0a84e1015cd",
+    "iterations": 210000
+  }
 };

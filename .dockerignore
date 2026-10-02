@@ -1,6 +1,9 @@
 .git
 .private
+backend/.private
+backend/tests
 node_modules
 .env
+backend/.env
 *.log
 tests

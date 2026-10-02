@@ -7,12 +7,12 @@ const { randomBytes, scrypt, timingSafeEqual } = require("node:crypto");
 const { promisify } = require("node:util");
 const deriveKey = promisify(scrypt);
 const { createDataStore } = require("./server-data");
-const ROOT = __dirname;
+const ROOT = path.resolve(__dirname, "..");
 const SESSION_TTL = 8 * 60 * 60 * 1000;
 const LOGIN_WINDOW = 15 * 60 * 1000;
 const COOKIE = "rd_admin_session";
-const PUBLIC_FILES = new Set(["index.html", "app.js", "data.js", "admin-store.js", "admin-login.html", "admin-login.js", "admin-auth.js", "site-config.js"]);
-const ADMIN_FILES = new Set(["admin.html", "admin.js"]);
+const PUBLIC_FILES = new Set(["index.html", "app.js", "data.js", "admin/store.js", "admin/login.html", "admin/login.js", "admin/auth.js", "admin/demo-store.js", "site-config.js"]);
+const ADMIN_FILES = new Set(["admin/index.html", "admin/console.js"]);
 
 function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath } = {}) {
   if (!account || !account.username || !/^[a-f0-9]{128}$/.test(account.passwordHash || "") || !/^[a-f0-9]{64}$/.test(account.salt || "")) {
@@ -125,12 +125,14 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
       }
       if (url.pathname.startsWith("/api/")) return json(res, 404, { message: "Not found." });
       if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, { message: "Method not allowed." });
+      if (url.pathname === "/admin-login.html") return redirect(res, "/admin/login.html");
+      if (url.pathname === "/admin.html" || url.pathname === "/admin" || url.pathname === "/admin/") return redirect(res, "/admin/index.html");
       let file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
       if (ADMIN_FILES.has(file) && !current) {
-        if (file === "admin.html") return redirect(res, "admin-login.html");
+        if (file === "admin/index.html") return redirect(res, "/admin/login.html");
         return json(res, 401, { message: "Administrator login required." });
       }
-      if (file === "admin-login.html" && current) return redirect(res, "admin.html");
+      if (file === "admin/login.html" && current) return redirect(res, "/admin/index.html");
       if (!PUBLIC_FILES.has(file) && !ADMIN_FILES.has(file)) return json(res, 404, { message: "Not found." });
       res.setHeader("Content-Type", file.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
       res.end(req.method === "HEAD" ? undefined : await fs.promises.readFile(path.join(ROOT, file)));
@@ -143,7 +145,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
 }
 
 if (require.main === module) {
-  const accountPath = path.join(ROOT, ".private", "admin-account.json");
+  const accountPath = path.join(__dirname, ".private", "admin-account.json");
   if (!process.env.ADMIN_PASSWORD && !fs.existsSync(accountPath)) {
     console.error("Initial administrator missing. Run npm run setup:admin before npm start.");
     process.exit(1);
@@ -160,7 +162,7 @@ if (require.main === module) {
   } else account = JSON.parse(fs.readFileSync(accountPath, "utf8"));
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
   for (const origin of allowedOrigins) if (new URL(origin).origin !== origin) throw new Error("ALLOWED_ORIGINS entries must be complete origins without a path or trailing slash.");
-  const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(ROOT, ".private", "dataset.json") });
+  const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json") });
   const port = Number(process.env.PORT || 8765);
   const host = process.env.HOST || (secureCookies ? "0.0.0.0" : "127.0.0.1");
   app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));

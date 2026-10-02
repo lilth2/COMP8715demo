@@ -8,7 +8,7 @@ const slug = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "
 
 function createDataStore(dataPath) {
   const context = { window: {} };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "data.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "data.js"), "utf8"), context);
   const D = context.window.RD_DATA;
   const defaults = clone({ version: 1, actors: D.actors, projects: D.projectNodes, relationships: D.relationships, sources: D.sources.map(source => ({ ...source, id: slug(source.type || source.name) })), audit: [], updatedAt: new Date().toISOString() });
   let state = dataPath && fs.existsSync(dataPath) ? JSON.parse(fs.readFileSync(dataPath, "utf8")) : clone(defaults);

@@ -30,13 +30,13 @@ async function fixture(t, options = {}) {
 
 test("anonymous access is blocked and private files are never served", async t => {
   const f = await fixture(t);
-  const response = await fetch(f.base + "/admin.html", { redirect: "manual" });
+  const response = await fetch(f.base + "/admin/index.html", { redirect: "manual" });
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "admin-login.html");
-  assert.equal((await fetch(f.base + "/admin.js")).status, 401);
+  assert.equal(response.headers.get("location"), "/admin/login.html");
+  assert.equal((await fetch(f.base + "/admin/console.js")).status, 401);
   assert.equal((await fetch(f.base + "/api/admin/dataset")).status, 401);
   assert.equal((await f.post("/api/admin/action", { operation: "reset" })).status, 401);
-  for (const filename of [".private/admin-account.json", "server.js", "setup-admin.js", "README.md", ".git/config"]) assert.equal((await fetch(f.base + "/" + filename)).status, 404);
+  for (const filename of ["backend/.private/admin-account.json", "backend/server.js", "backend/setup-admin.js", "README.md", ".git/config"]) assert.equal((await fetch(f.base + "/" + filename)).status, 404);
   assert.equal((await f.post("/api/register", {})).status, 404);
 });
 
@@ -50,7 +50,7 @@ test("only the preset credentials work, with session revocation on logout", asyn
   assert.match(cookie, /SameSite=Strict/);
   const headers = { Authorization: "Bearer " + login.token };
   assert.equal((await (await fetch(f.base + "/api/session", { headers })).json()).authenticated, true);
-  assert.equal((await fetch(f.base + "/admin.html", { headers })).status, 200);
+  assert.equal((await fetch(f.base + "/admin/index.html", { headers })).status, 200);
   assert.equal((await f.post("/api/logout", {}, login.token)).status, 200);
   assert.equal((await fetch(f.base + "/api/admin/dataset", { headers })).status, 401);
   const forged = await fetch(f.base + "/api/admin/dataset", { headers: { Authorization: "Bearer forged-session" } });
@@ -92,4 +92,16 @@ test("password guessing is rate limited", async t => {
   const f = await fixture(t);
   for (let i = 0; i < 10; i++) assert.equal((await f.post("/api/login", { username: "admin", password: "wrong" })).status, 401);
   assert.equal((await f.post("/api/login", { username: "admin", password: f.password })).status, 429);
+});
+
+test("old administrator URLs and navigation resolve after directory reorganisation", async t => {
+  const f = await fixture(t);
+  assert.equal((await fetch(f.base + "/admin-login.html", { redirect: "manual" })).headers.get("location"), "/admin/login.html");
+  assert.equal((await fetch(f.base + "/admin.html", { redirect: "manual" })).headers.get("location"), "/admin/index.html");
+  assert.match(await (await fetch(f.base + "/")).text(), /href="admin\/login\.html"/);
+  for (const asset of ["admin/login.html", "admin/login.js", "admin/auth.js", "admin/store.js", "admin/demo-store.js"]) assert.equal((await fetch(f.base + "/" + asset)).status, 200);
+  const login = await f.login();
+  const cookie = login.response.headers.get("set-cookie").split(";")[0];
+  const redirect = await fetch(f.base + "/admin/login.html", { headers: { Cookie: cookie }, redirect: "manual" });
+  assert.equal(redirect.headers.get("location"), "/admin/index.html");
 });

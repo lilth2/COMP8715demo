@@ -1537,5 +1537,5 @@
     applyTransform();
     switchView("overview");
   }
-  init();
+  window.RD_ADMIN_STORE.ready.then(init);
 })();

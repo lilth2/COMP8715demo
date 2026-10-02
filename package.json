@@ -1,0 +1,11 @@
+{
+  "name": "australian-rd-directory",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "setup:admin": "node setup-admin.js",
+    "start": "node server.js",
+    "test": "node --test tests/auth.test.js"
+  },
+  "engines": { "node": ">=20" }
+}

@@ -259,7 +259,8 @@
     $("#addSourceBtn").addEventListener("click", function () { openSource(); });
     $("#exportBtn").addEventListener("click", exportData);
 
-    document.addEventListener("click", function (event) {
+    document.addEventListener("click", async function (event) {
+      try {
       var editOrg = event.target.closest("[data-edit-org]");
       var deleteOrg = event.target.closest("[data-delete-org]");
       var editProject = event.target.closest("[data-edit-project]");
@@ -270,50 +271,57 @@
       var deleteSource = event.target.closest("[data-delete-source]");
       if (editOrg) openOrganisation(editOrg.dataset.editOrg);
       if (deleteOrg && window.confirm("Archive this organisation and remove its linked relationships from the demo dataset?")) {
-        Store.deleteActor(deleteOrg.dataset.deleteOrg); showToast("Organisation archived."); renderAll();
+        await Store.deleteActor(deleteOrg.dataset.deleteOrg); showToast("Organisation archived."); renderAll();
       }
       if (editProject) openProject(editProject.dataset.editProject);
       if (deleteProject && window.confirm("Archive this project and remove its linked relationships from the demo dataset?")) {
-        Store.deleteProject(deleteProject.dataset.deleteProject); showToast("Project archived."); renderAll();
+        await Store.deleteProject(deleteProject.dataset.deleteProject); showToast("Project archived."); renderAll();
       }
       if (editRel) openRelationship(editRel.dataset.editRel);
       if (deleteRel && window.confirm("Delete this relationship?")) {
-        Store.deleteRelationship(deleteRel.dataset.deleteRel); showToast("Relationship deleted."); renderAll();
+        await Store.deleteRelationship(deleteRel.dataset.deleteRel); showToast("Relationship deleted."); renderAll();
       }
       if (editSource) openSource(editSource.dataset.editSource);
       if (deleteSource && window.confirm("Delete this source category?")) {
-        Store.deleteSource(deleteSource.dataset.deleteSource); showToast("Source deleted."); renderAll();
+        await Store.deleteSource(deleteSource.dataset.deleteSource); showToast("Source deleted."); renderAll();
       }
+      } catch (error) { showToast(error.message, true); }
     });
 
-    $("#organisationForm").addEventListener("submit", function (event) {
+    $("#organisationForm").addEventListener("submit", async function (event) {
       event.preventDefault();
+      try {
       var original = $("#orgOriginalId").value;
       var existing = original ? Store.findActor(original) : {};
-      Store.upsertActor(Object.assign({}, existing || {}, {
+      await Store.upsertActor(Object.assign({}, existing || {}, {
         id: original || $("#orgId").value.trim(), name: $("#orgName").value.trim(), type: $("#orgType").value,
         state: $("#orgState").value, dataConfidence: $("#orgConfidenceField").value,
         summary: $("#orgSummary").value.trim(), sectors: list($("#orgSectors").value), themes: list($("#orgThemes").value),
         website: $("#orgWebsite").value.trim(), lastUpdated: $("#orgUpdated").value, sourceNotes: lines($("#orgSourceNotes").value),
       }));
       $("#organisationDialog").close(); showToast(original ? "Organisation updated." : "Organisation created."); renderAll();
+      } catch (error) { showToast(error.message, true); }
     });
 
-    $("#relationshipForm").addEventListener("submit", function (event) {
+    $("#relationshipForm").addEventListener("submit", async function (event) {
       event.preventDefault();
+      try {
       if ($("#relSource").value === $("#relTarget").value) { showToast("Choose two different records.", true); return; }
-      Store.upsertRelationship({
+      var existingRel = Store.snapshot().relationships.filter(function (item) { return item.id === $("#relId").value; })[0];
+      await Store.upsertRelationship({
         id: $("#relId").value, sourceId: $("#relSource").value, targetId: $("#relTarget").value,
         type: $("#relType").value, confidence: $("#relConfidence").value,
-        intensity: "medium", evidence: $("#relEvidence").value.trim(), lastUpdated: new Date().toISOString().slice(0, 10),
+        intensity: existingRel ? existingRel.intensity : "medium", evidence: $("#relEvidence").value.trim(), lastUpdated: new Date().toISOString().slice(0, 10),
       });
       $("#relationshipDialog").close(); showToast("Relationship saved."); renderAll();
+      } catch (error) { showToast(error.message, true); }
     });
 
-    $("#projectForm").addEventListener("submit", function (event) {
+    $("#projectForm").addEventListener("submit", async function (event) {
       event.preventDefault();
+      try {
       var original = $("#projectOriginalId").value;
-      Store.upsertProject({
+      await Store.upsertProject({
         id: original || $("#projectId").value.trim(), name: $("#projectName").value.trim(), type: "project_initiative",
         hostId: $("#projectHost").value, state: $("#projectState").value,
         dataConfidence: $("#projectConfidence").value, summary: $("#projectSummary").value.trim(),
@@ -321,35 +329,69 @@
         evidenceSnippet: $("#projectEvidence").value.trim(),
       });
       $("#projectDialog").close(); showToast(original ? "Project updated." : "Project created."); renderAll();
+      } catch (error) { showToast(error.message, true); }
     });
 
-    $("#sourceForm").addEventListener("submit", function (event) {
+    $("#sourceForm").addEventListener("submit", async function (event) {
       event.preventDefault();
-      Store.upsertSource({ id: $("#sourceId").value, name: $("#sourceName").value.trim(), type: $("#sourceType").value.trim(), notes: $("#sourceNotes").value.trim() });
+      try {
+      await Store.upsertSource({ id: $("#sourceId").value, name: $("#sourceName").value.trim(), type: $("#sourceType").value.trim(), notes: $("#sourceNotes").value.trim() });
       $("#sourceDialog").close(); showToast("Source saved."); renderAll();
+      } catch (error) { showToast(error.message, true); }
     });
 
     $("#importInput").addEventListener("change", function (event) {
       var file = event.target.files[0];
       if (!file) return;
       var reader = new FileReader();
-      reader.onload = function () {
-        try { Store.importState(JSON.parse(reader.result)); showToast("Dataset imported."); renderAll(); }
+      reader.onload = async function () {
+        try { await Store.importState(JSON.parse(reader.result)); showToast("Dataset imported."); renderAll(); }
         catch (error) { showToast(error.message || "Import failed.", true); }
         event.target.value = "";
       };
       reader.readAsText(file);
     });
 
-    $("#resetBtn").addEventListener("click", function () {
-      if (!window.confirm("Reset all browser-local changes and restore the repository demo data?")) return;
-      Store.reset(); showToast("Demo data restored."); renderAll();
+    $("#resetBtn").addEventListener("click", async function () {
+      if (!window.confirm("Restore the original shared demo dataset? This affects all visitors.")) return;
+      try { await Store.reset(); showToast("Demo data restored."); renderAll(); }
+      catch (error) { showToast(error.message, true); }
     });
 
     window.addEventListener("rd-admin-data-changed", renderAll);
   }
 
-  fillCommonOptions();
-  wireEvents();
-  renderAll();
+  async function requireLogin() {
+    try {
+      var session = await window.RD_ADMIN_AUTH.session();
+      if (!session.authenticated) { window.location.replace("admin-login.html"); return false; }
+      $("#adminIdentity").textContent = session.username + " · Administrator";
+      return true;
+    } catch (error) {
+      window.location.replace("admin-login.html");
+      return false;
+    }
+  }
+  $("#logoutBtn").addEventListener("click", async function () {
+    this.disabled = true;
+    try {
+      await window.RD_ADMIN_AUTH.logout();
+      window.location.replace("admin-login.html");
+    } catch (error) { showToast(error.message, true); this.disabled = false; }
+  });
+  requireLogin().then(async function (allowed) {
+    if (!allowed) return;
+    if (!await Store.ready) {
+      document.body.classList.remove("auth-pending");
+      $(".shell").style.display = "none";
+      showToast(Store.loadError || "Unable to load administrator data. Please reload the page.", true);
+      return;
+    }
+    fillCommonOptions();
+    wireEvents();
+    renderAll();
+    document.body.classList.remove("auth-pending");
+    window.setInterval(requireLogin, 60000);
+    window.addEventListener("pageshow", requireLogin);
+  });
 })();

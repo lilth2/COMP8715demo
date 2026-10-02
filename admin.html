@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
+    body.auth-pending .shell, body.auth-pending .topbar{visibility:hidden}
     :root{
       --navy:#102e52; --navy-2:#173f6d; --teal:#168a80; --teal-tint:#e6f5f2;
       --gold:#d69a24; --red:#b94747; --ink:#172536; --muted:#657487; --line:#dbe3ec;
@@ -36,10 +37,10 @@
     @media(max-width:650px){.brand small{display:none}.metric-grid{grid-template-columns:1fr 1fr}.page-head{flex-direction:column}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.table-wrap{overflow:auto}th,td{white-space:nowrap}.top-link{display:none}}
   </style>
 </head>
-<body>
+<body class="auth-pending">
   <header class="topbar">
     <div class="brand"><span class="brand-mark">◆</span><span>Directory Admin Console<small>Australian R&amp;D Intelligent Directory</small></span></div>
-    <div class="top-actions"><span class="admin-badge">Administrator · prototype access</span><a class="top-link" href="index.html">View public directory ↗</a></div>
+    <div class="top-actions"><span class="admin-badge" id="adminIdentity">Administrator</span><a class="top-link" href="index.html">View public directory ↗</a><button class="btn small" id="logoutBtn" type="button">Sign out</button></div>
   </header>
   <div class="shell">
     <aside class="sidebar">
@@ -50,12 +51,12 @@
       <button class="nav-btn" data-page="relationships">Relationships <span class="nav-count" id="relNavCount">0</span></button>
       <button class="nav-btn" data-page="sources">Sources <span class="nav-count" id="sourceNavCount">0</span></button>
       <button class="nav-btn" data-page="history">Change history</button>
-      <div class="side-note"><strong>Prototype storage</strong>Changes are saved in this browser. Export JSON before clearing browser data. The storage layer is ready to be replaced by an authenticated API.</div>
+      <div class="side-note"><strong>Administrator workspace</strong>Changes are saved to the server and recorded in change history.</div>
     </aside>
     <main>
       <section class="page active" id="page-dashboard">
         <div class="page-head"><div><h1>Administration overview</h1><p>Review directory coverage, data quality and recent changes before publishing updates.</p></div><div class="actions"><button class="btn" id="exportBtn">Export JSON</button><label class="btn" for="importInput">Import JSON</label><input class="file-input" type="file" id="importInput" accept="application/json" /></div></div>
-        <div class="notice">This Sprint 2 version demonstrates the administration workflow. Authentication, server persistence and approval permissions will be connected when the production backend is selected.</div>
+        <div class="notice">You are editing the shared directory dataset. Saved changes will be visible in the public directory.</div>
         <div class="metric-grid" id="metricGrid"></div>
         <div class="two-col">
           <div class="panel"><div class="panel-head"><h2>Recent changes</h2><button class="btn small" data-go="history">View all</button></div><div class="panel-body"><div class="audit-list" id="recentAudit"></div></div></div>
@@ -84,7 +85,7 @@
       </section>
 
       <section class="page" id="page-history">
-        <div class="page-head"><div><h1>Change history</h1><p>A browser-local audit trail of changes made through this administration console.</p></div><button class="btn danger" id="resetBtn">Reset demo data</button></div>
+        <div class="page-head"><div><h1>Change history</h1><p>Review changes recorded by the server for your administrator account.</p></div><button class="btn danger" id="resetBtn">Reset demo data</button></div>
         <div class="panel"><div class="panel-body"><div class="audit-list" id="auditList"></div></div></div>
       </section>
     </main>
@@ -159,6 +160,8 @@
   </dialog>
 
   <div class="toast" id="toast" hidden></div>
+  <script src="site-config.js"></script>
+  <script src="admin-auth.js"></script>
   <script src="data.js"></script>
   <script src="admin-store.js"></script>
   <script src="admin.js"></script>

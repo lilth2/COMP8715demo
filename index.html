@@ -248,6 +248,9 @@
   .btn-mini.on{ background:var(--brand); border-color:var(--brand); color:#fff; }
   .entity-link{ color:var(--brand-strong); text-decoration:none; font-weight:600; }
   .entity-link:hover{ text-decoration:underline; }
+  .entity-link-unavailable{ color:var(--ink-muted); font-style:italic; }
+  .data-notice.error{ color:#fff; background:var(--status-critical); border-color:var(--status-critical); }
+  .data-notice .retry-btn{ margin-left:8px; font:inherit; font-weight:700; text-decoration:underline; background:none; border:none; color:inherit; cursor:pointer; padding:0; }
   .why-btn{
     width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--canvas);
     color:var(--ink-muted); font-size:11px; font-weight:700; cursor:pointer; flex:none; line-height:1;
@@ -528,6 +531,7 @@
     <a class="tab-btn" href="admin/login.html" style="text-decoration:none; margin-left:auto; display:inline-flex; align-items:center; color:var(--brand-strong);" aria-label="Administrator login">Admin Login</a>
   </nav>
 
+  <div class="data-notice error" id="globalDataError" role="alert" hidden style="margin:0;border-radius:0;display:block;"></div>
   <main class="views" id="views">
 
     <!-- ============ OVERVIEW ============ -->
@@ -535,7 +539,7 @@
       <div class="view-head">
         <h1 class="view-title">Australian R&amp;D Intelligent Directory</h1>
         <p class="view-subtitle">Map, search, and understand Australia's R&amp;D ecosystem through organisations, facilities, sectors, themes, and collaboration networks.</p>
-        <div class="data-notice">⚠ Demo data only. Synthetic and public-style examples — not a factual record of any real organisation.</div>
+        <div class="data-notice" id="dataNotice">⚠ Demo data only. Synthetic and public-style examples — not a factual record of any real organisation.</div>
       </div>
       <div class="view-inner">
         <div class="quick-grid" id="quickGrid"></div>
@@ -625,6 +629,7 @@
           <input id="aiInput" class="ai-input" placeholder="Ask an ecosystem question..." autocomplete="off" />
           <button class="icon-btn primary" id="aiAskBtn">Ask</button>
         </div>
+        <div class="data-notice" id="aiScriptedNote" style="margin:10px 0 0;"></div>
         <div class="ai-suggest" id="aiSuggest"></div>
         <div class="ai-thread" id="aiThread"></div>
       </div>
@@ -679,6 +684,7 @@
             </svg>
             <div class="map-attribution">Simplified state/territory boundaries: amCharts geodata, free license</div>
           </div>
+          <div class="drawer-note" id="geoUnmapped" style="margin-top:12px;"></div>
           <div class="region-detail" id="regionDetail">Select a state to see capability density, decarbonisation hotspot status, and collaboration links.</div>
         </div>
         <div style="flex:1; min-width:260px;">

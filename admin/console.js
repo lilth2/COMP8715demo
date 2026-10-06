@@ -21,6 +21,15 @@
   function lines(value) {
     return String(value || "").split(/\r?\n/).map(function (item) { return item.trim(); }).filter(Boolean);
   }
+  function officesToText(offices) {
+    return (offices || []).map(function (o) { return [o.role, o.state, o.city || "", o.focus || ""].join(" | "); }).join("\n");
+  }
+  function textToOffices(value) {
+    return lines(value).map(function (line) {
+      var parts = line.split("|").map(function (part) { return part.trim(); });
+      return { role: parts[0].toLowerCase(), state: (parts[1] || "").toUpperCase(), city: parts[2] || "", focus: parts.slice(3).join(" | ") };
+    });
+  }
   function formatDate(value, withTime) {
     if (!value) return "—";
     var date = new Date(value.length === 10 ? value + "T00:00:00" : value);
@@ -29,12 +38,69 @@
   }
   function nodeName(id) {
     var node = D.allNodes.filter(function (item) { return item.id === id; })[0];
-    return node ? node.name : id;
+    return node ? node.name : id + " (unavailable)";
   }
   function confidencePill(value) {
     var meta = D.CONFIDENCE_META[value] || { label: title(value || "not set") };
     return '<span class="pill ' + esc(value) + '"><span class="dot"></span>' + esc(meta.label) + "</span>";
   }
+
+  // ----------------------------------------------------------- publish/draft lifecycle
+  var STATUS_LABEL = { draft: "Draft", published: "Published", archived: "Archived" };
+  function recordPublicFields(record) {
+    var copy = Object.assign({}, record);
+    delete copy.status; delete copy.publishedSnapshot;
+    return copy;
+  }
+  function hasPendingChanges(record) {
+    if (!record || record.status !== "published" || !record.publishedSnapshot) return false;
+    return JSON.stringify(recordPublicFields(record)) !== JSON.stringify(record.publishedSnapshot);
+  }
+  function statusPill(record) {
+    var label = STATUS_LABEL[record.status] || title(record.status);
+    if (record.status === "published" && hasPendingChanges(record)) label += " · unpublished changes";
+    return '<span class="pill status-' + esc(record.status) + '">' + esc(label) + "</span>";
+  }
+  function actionButton(action, kind, id, label, cls) {
+    return '<button class="btn small' + (cls ? " " + cls : "") + '" data-action="' + action + '" data-kind="' + kind + '" data-id="' + esc(id) + '">' + esc(label) + "</button>";
+  }
+  function lifecycleActionsHTML(kind, record) {
+    var html = actionButton("edit", kind, record.id, "Edit") + actionButton("preview", kind, record.id, "Preview");
+    if (record.status === "draft") {
+      html += actionButton("publish", kind, record.id, "Publish", "teal");
+    } else if (record.status === "published") {
+      if (hasPendingChanges(record)) html += actionButton("publish", kind, record.id, "Publish changes", "teal");
+      html += actionButton("withdraw", kind, record.id, "Withdraw");
+    } else if (record.status === "archived") {
+      html += actionButton("restore", kind, record.id, "Restore", "teal");
+    }
+    if (record.status !== "archived") html += actionButton("archive", kind, record.id, "Archive");
+    html += actionButton("delete", kind, record.id, "Delete", "danger");
+    return '<div class="row-actions">' + html + "</div>";
+  }
+  function passesStatusFilter(record, selectId) {
+    var value = $(selectId) ? $(selectId).value : "";
+    return !value || record.status === value;
+  }
+  function publishedRelCount(id) {
+    return Store.relationshipsTouching(id).filter(function (item) { return item.status === "published"; }).length;
+  }
+  function publishPreviewText(kind, record) {
+    var lines = ["Publish this record to the public Ecosystem View?", ""];
+    if (kind === "rel") {
+      lines[0] = "Publish this relationship to the public Ecosystem View?";
+      lines.push(((D.RELATIONSHIP_META[record.type] || {}).label || record.type) + ": " + nodeName(record.sourceId) + " → " + nodeName(record.targetId));
+      lines.push("Evidence: " + (record.evidence || "—"));
+    } else {
+      lines.push("Name: " + record.name);
+      if (kind === "org") lines.push("Type: " + ((D.TYPE_META[record.type] || {}).label || title(record.type)), "State: " + (record.state || "—"));
+      if (kind === "project") lines.push("Host: " + (record.hostId ? nodeName(record.hostId) : "—"), "State: " + (record.state || "—"));
+      lines.push("Summary: " + (record.summary || "—"));
+    }
+    if (record.status === "published") lines.push("", "This replaces the version currently visible to the public with your saved changes.");
+    return lines.join("\n");
+  }
+
   function showToast(message, isError) {
     var toast = $("#toast");
     toast.textContent = message;
@@ -54,13 +120,17 @@
   }
 
   function renderMetrics(snapshot) {
+    function published(coll) { return snapshot[coll].filter(function (item) { return item.status === "published"; }).length; }
+    function drafts(coll) { return snapshot[coll].filter(function (item) { return item.status === "draft"; }).length; }
     var needsReview = snapshot.actors.filter(function (item) { return item.dataConfidence === "needs-review" || item.dataConfidence === "stale"; }).length;
-    var verified = snapshot.actors.filter(function (item) { return item.dataConfidence === "verified"; }).length;
+    var draftTotal = drafts("actors") + drafts("projects") + drafts("themes") + drafts("relationships");
     var cards = [
-      [snapshot.actors.length, "Organisations", verified + " verified records"],
-      [snapshot.projects.length, "Projects", snapshot.projects.filter(function (item) { return item.dataConfidence === "verified"; }).length + " verified records"],
-      [snapshot.relationships.length, "Relationships", snapshot.relationships.filter(function (item) { return item.confidence === "verified"; }).length + " verified links"],
+      [published("actors") + "/" + snapshot.actors.length, "Organisations (published / total)", drafts("actors") + " draft"],
+      [published("projects") + "/" + snapshot.projects.length, "Projects (published / total)", drafts("projects") + " draft"],
+      [published("themes") + "/" + snapshot.themes.length, "Research themes (published / total)", drafts("themes") + " draft"],
+      [published("relationships") + "/" + snapshot.relationships.length, "Relationships (published / total)", drafts("relationships") + " draft"],
       [snapshot.sources.length, "Source categories", "Used for provenance"],
+      [draftTotal, "Drafts awaiting publish", draftTotal ? "Review and publish when ready" : "Nothing waiting"],
       [needsReview, "Records to review", needsReview ? "Action recommended" : "No review backlog"],
     ];
     $("#metricGrid").innerHTML = cards.map(function (card) {
@@ -102,31 +172,41 @@
     var confidence = $("#orgConfidence").value;
     var actors = snapshot.actors.filter(function (actor) {
       var haystack = [actor.name, actor.type, actor.state, (actor.sectors || []).join(" ")].join(" ").toLowerCase();
-      return (!query || haystack.indexOf(query) >= 0) && (!confidence || actor.dataConfidence === confidence);
+      return (!query || haystack.indexOf(query) >= 0) && (!confidence || actor.dataConfidence === confidence) && passesStatusFilter(actor, "#orgStatus");
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     $("#orgTableBody").innerHTML = actors.length ? actors.map(function (actor) {
-      return '<tr><td><div class="record-name">' + esc(actor.name) + '</div><div class="record-sub">' + esc(actor.id) + '</div></td><td>' + esc((D.TYPE_META[actor.type] || {}).label || title(actor.type)) + '</td><td>' + esc(actor.state || "—") + '</td><td>' + confidencePill(actor.dataConfidence) + '</td><td>' + esc(formatDate(actor.lastUpdated)) + '</td><td><div class="row-actions"><button class="btn small" data-edit-org="' + esc(actor.id) + '">Edit</button><button class="btn small danger" data-delete-org="' + esc(actor.id) + '">Archive</button></div></td></tr>';
-    }).join("") : '<tr><td colspan="6" class="empty">No matching organisations.</td></tr>';
+      return "<tr><td><div class=\"record-name\">" + esc(actor.name) + "</div><div class=\"record-sub\">" + esc(actor.id) + "</div></td><td>" + esc((D.TYPE_META[actor.type] || {}).label || title(actor.type)) + "</td><td>" + esc(actor.state || "—") + "</td><td>" + statusPill(actor) + "</td><td>" + confidencePill(actor.dataConfidence) + "</td><td>" + esc(formatDate(actor.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("org", actor) + "</td></tr>";
+    }).join("") : '<tr><td colspan="7" class="empty">No matching organisations.</td></tr>';
   }
 
   function renderRelationships(snapshot) {
     var query = $("#relSearch").value.trim().toLowerCase();
     var relationships = snapshot.relationships.filter(function (rel) {
-      return [nodeName(rel.sourceId), nodeName(rel.targetId), rel.type].join(" ").toLowerCase().indexOf(query) >= 0;
+      return [nodeName(rel.sourceId), nodeName(rel.targetId), rel.type].join(" ").toLowerCase().indexOf(query) >= 0 && passesStatusFilter(rel, "#relStatus");
     });
     $("#relTableBody").innerHTML = relationships.length ? relationships.map(function (rel) {
-      return '<tr><td><span class="record-name">' + esc(nodeName(rel.sourceId)) + '</span></td><td>' + esc((D.RELATIONSHIP_META[rel.type] || {}).label || title(rel.type)) + '</td><td><span class="record-name">' + esc(nodeName(rel.targetId)) + '</span></td><td>' + confidencePill(rel.confidence) + '</td><td><div class="record-sub">' + esc(rel.evidence || "No evidence note") + '</div></td><td><div class="row-actions"><button class="btn small" data-edit-rel="' + esc(rel.id) + '">Edit</button><button class="btn small danger" data-delete-rel="' + esc(rel.id) + '">Delete</button></div></td></tr>';
-    }).join("") : '<tr><td colspan="6" class="empty">No matching relationships.</td></tr>';
+      return "<tr><td><span class=\"record-name\">" + esc(nodeName(rel.sourceId)) + "</span></td><td>" + esc((D.RELATIONSHIP_META[rel.type] || {}).label || title(rel.type)) + "</td><td><span class=\"record-name\">" + esc(nodeName(rel.targetId)) + "</span></td><td>" + statusPill(rel) + "</td><td>" + confidencePill(rel.confidence) + "</td><td><div class=\"record-sub\">" + esc(rel.evidence || "No evidence note") + "</div></td><td>" + lifecycleActionsHTML("rel", rel) + "</td></tr>";
+    }).join("") : '<tr><td colspan="7" class="empty">No matching relationships.</td></tr>';
   }
 
   function renderProjects(snapshot) {
     var query = $("#projectSearch").value.trim().toLowerCase();
     var projects = snapshot.projects.filter(function (project) {
-      return [project.name, nodeName(project.hostId), project.state, (project.themes || []).join(" ")].join(" ").toLowerCase().indexOf(query) >= 0;
+      return [project.name, nodeName(project.hostId), project.state, (project.themes || []).join(" ")].join(" ").toLowerCase().indexOf(query) >= 0 && passesStatusFilter(project, "#projectStatus");
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     $("#projectTableBody").innerHTML = projects.length ? projects.map(function (project) {
-      return '<tr><td><div class="record-name">' + esc(project.name) + '</div><div class="record-sub">' + esc(project.id) + '</div></td><td>' + esc(project.hostId ? nodeName(project.hostId) : "—") + '</td><td>' + esc(project.state || "—") + '</td><td>' + confidencePill(project.dataConfidence) + '</td><td>' + esc(formatDate(project.lastUpdated)) + '</td><td><div class="row-actions"><button class="btn small" data-edit-project="' + esc(project.id) + '">Edit</button><button class="btn small danger" data-delete-project="' + esc(project.id) + '">Archive</button></div></td></tr>';
-    }).join("") : '<tr><td colspan="6" class="empty">No matching projects.</td></tr>';
+      return "<tr><td><div class=\"record-name\">" + esc(project.name) + "</div><div class=\"record-sub\">" + esc(project.id) + "</div></td><td>" + esc(project.hostId ? nodeName(project.hostId) : "—") + "</td><td>" + esc(project.state || "—") + "</td><td>" + statusPill(project) + "</td><td>" + confidencePill(project.dataConfidence) + "</td><td>" + esc(formatDate(project.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("project", project) + "</td></tr>";
+    }).join("") : '<tr><td colspan="7" class="empty">No matching projects.</td></tr>';
+  }
+
+  function renderThemes(snapshot) {
+    var query = $("#themeSearch").value.trim().toLowerCase();
+    var themes = (snapshot.themes || []).filter(function (theme) {
+      return theme.name.toLowerCase().indexOf(query) >= 0 && passesStatusFilter(theme, "#themeStatus");
+    }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    $("#themeTableBody").innerHTML = themes.length ? themes.map(function (theme) {
+      return "<tr><td><div class=\"record-name\">" + esc(theme.name) + "</div><div class=\"record-sub\">" + esc(theme.id) + "</div></td><td>" + statusPill(theme) + "</td><td>" + confidencePill(theme.dataConfidence) + "</td><td>" + esc(formatDate(theme.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("theme", theme) + "</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty">No matching research themes.</td></tr>';
   }
 
   function renderSources(snapshot) {
@@ -139,11 +219,13 @@
     var snapshot = Store.snapshot();
     $("#orgNavCount").textContent = snapshot.actors.length;
     $("#projectNavCount").textContent = snapshot.projects.length;
+    $("#themeNavCount").textContent = (snapshot.themes || []).length;
     $("#relNavCount").textContent = snapshot.relationships.length;
     $("#sourceNavCount").textContent = snapshot.sources.length;
     renderDashboard(snapshot);
     renderOrganisations(snapshot);
     renderProjects(snapshot);
+    renderThemes(snapshot);
     renderRelationships(snapshot);
     renderSources(snapshot);
     $("#auditList").innerHTML = auditHTML(snapshot.audit, "No changes have been made through the console yet.");
@@ -155,15 +237,23 @@
     var confidenceOptions = Object.keys(D.CONFIDENCE_META).map(function (key) { return option(key, D.CONFIDENCE_META[key].label); }).join("");
     $("#orgConfidenceField").innerHTML = confidenceOptions;
     $("#projectConfidence").innerHTML = confidenceOptions;
+    $("#themeConfidence").innerHTML = confidenceOptions;
     $("#projectState").innerHTML = option("", "Not specified") + D.STATES.map(function (state) { return option(state.code, state.name + " (" + state.code + ")"); }).join("");
     $("#relConfidence").innerHTML = confidenceOptions;
     $("#relType").innerHTML = Object.keys(D.RELATIONSHIP_META).map(function (key) { return option(key, D.RELATIONSHIP_META[key].label); }).join("");
   }
 
+  // Every record the admin can link to as a relationship endpoint — including
+  // drafts, so a relationship can be authored before both ends are published.
+  // Publishing the relationship itself is still blocked until they are.
   function fillNodeOptions(selectedSource, selectedTarget) {
-    var nodes = D.allNodes.slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
-    $("#relSource").innerHTML = nodes.map(function (node) { return option(node.id, node.name, selectedSource); }).join("");
-    $("#relTarget").innerHTML = nodes.map(function (node) { return option(node.id, node.name, selectedTarget); }).join("");
+    var nodes = Store.snapshot();
+    var all = nodes.actors.concat(nodes.projects, nodes.themes).slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+    function renderOption(node, selected) {
+      return option(node.id, node.name + (node.status !== "published" ? " (" + STATUS_LABEL[node.status] + ")" : ""), selected);
+    }
+    $("#relSource").innerHTML = all.map(function (node) { return renderOption(node, selectedSource); }).join("");
+    $("#relTarget").innerHTML = all.map(function (node) { return renderOption(node, selectedTarget); }).join("");
   }
 
   function openOrganisation(id) {
@@ -182,6 +272,7 @@
     $("#orgThemes").value = actor ? (actor.themes || []).join(", ") : "";
     $("#orgWebsite").value = actor ? actor.website || "" : "";
     $("#orgUpdated").value = actor ? actor.lastUpdated || "" : new Date().toISOString().slice(0, 10);
+    $("#orgOffices").value = actor ? officesToText(actor.offices) : "";
     $("#orgSourceNotes").value = actor ? (actor.sourceNotes || []).join("\n") : "";
     $("#organisationDialog").showModal();
   }
@@ -200,7 +291,8 @@
   }
 
   function fillProjectHosts(selected) {
-    $("#projectHost").innerHTML = option("", "Not specified", selected) + D.actors.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (actor) { return option(actor.id, actor.name, selected); }).join("");
+    $("#projectHost").innerHTML = option("", "Not specified", selected) + Store.snapshot().actors.slice().sort(function (a, b) { return a.name.localeCompare(b.name); })
+      .map(function (actor) { return option(actor.id, actor.name + (actor.status !== "published" ? " (" + STATUS_LABEL[actor.status] + ")" : ""), selected); }).join("");
   }
 
   function openProject(id) {
@@ -219,6 +311,20 @@
     $("#projectUpdated").value = project ? project.lastUpdated || "" : new Date().toISOString().slice(0, 10);
     $("#projectEvidence").value = project ? project.evidenceSnippet || "" : "";
     $("#projectDialog").showModal();
+  }
+
+  function openTheme(id) {
+    var theme = id ? Store.findTheme(id) : null;
+    $("#themeForm").reset();
+    $("#themeDialogTitle").textContent = theme ? "Edit research theme" : "Add research theme";
+    $("#themeOriginalId").value = theme ? theme.id : "";
+    $("#themeName").value = theme ? theme.name : "";
+    $("#themeId").value = theme ? theme.id : "";
+    $("#themeId").disabled = Boolean(theme);
+    $("#themeConfidence").value = theme ? theme.dataConfidence || "needs-review" : "needs-review";
+    $("#themeSummary").value = theme ? theme.summary || "" : "";
+    $("#themeUpdated").value = theme ? theme.lastUpdated || "" : new Date().toISOString().slice(0, 10);
+    $("#themeDialog").showModal();
   }
 
   function openSource(id) {
@@ -244,47 +350,90 @@
     showToast("Dataset exported.");
   }
 
+  var OPEN_BY_KIND = { org: openOrganisation, project: openProject, theme: openTheme, rel: openRelationship };
+  var COLLECTION_BY_KIND = { org: "actors", project: "projects", theme: "themes", rel: "relationships" };
+  var DELETE_BY_KIND = {
+    org: function (id) { return Store.deleteActor(id); },
+    project: function (id) { return Store.deleteProject(id); },
+    theme: function (id) { return Store.deleteTheme(id); },
+    rel: function (id) { return Store.deleteRelationship(id); },
+  };
+  var KIND_NOUN = { org: "organisation", project: "project", theme: "research theme", rel: "relationship" };
+
+  async function handleLifecycleAction(action, kind, id) {
+    var collection = COLLECTION_BY_KIND[kind];
+    var record = Store.snapshot()[collection].filter(function (item) { return item.id === id; })[0];
+    if (!record) { showToast("Record not found.", true); return; }
+    if (action === "preview") {
+      var rels = Store.relationshipsTouching(id);
+      var visibility = record.status === "published" ? (hasPendingChanges(record) ? "Published (public copy differs from this draft)" : "Published (public copy matches)") : "Not public (" + STATUS_LABEL[record.status] + ")";
+      $("#previewTitle").textContent = "Preview \u2014 " + (record.name || "relationship");
+      $("#previewBody").textContent = "Visibility: " + visibility + "\n\n" + publishPreviewText(kind, record).replace(/^Publish this[^\n]*\n\n/, "") +
+        (kind !== "rel" ? "\n\nRelationships: " + (rels.length ? rels.map(function (r) { return nodeName(r.sourceId) + " \u2192 " + nodeName(r.targetId) + " [" + STATUS_LABEL[r.status] + "]"; }).join("; ") : "none") : "");
+      $("#previewDialog").showModal();
+    } else if (action === "publish") {
+      if (!window.confirm(publishPreviewText(kind, record))) return;
+      await Store.publish(collection, id);
+      showToast("Published."); renderAll();
+    } else if (action === "withdraw") {
+      var impact = publishedRelCount(id);
+      var withdrawMsg = "Withdraw this " + KIND_NOUN[kind] + " from the public Ecosystem View?" +
+        (impact ? " " + impact + " published relationship(s) referencing it will also stop appearing publicly until it is republished." : "");
+      if (!window.confirm(withdrawMsg)) return;
+      await Store.withdraw(collection, id);
+      showToast("Withdrawn to draft."); renderAll();
+    } else if (action === "archive") {
+      var impactA = publishedRelCount(id);
+      var archiveMsg = "Archive this " + KIND_NOUN[kind] + "? It is removed from the public Ecosystem View" +
+        (impactA ? " along with " + impactA + " published relationship(s) referencing it" : "") +
+        ", but kept here and can be restored later.";
+      if (!window.confirm(archiveMsg)) return;
+      await Store.archiveRecord(collection, id);
+      showToast("Archived."); renderAll();
+    } else if (action === "restore") {
+      await Store.restoreRecord(collection, id);
+      showToast("Restored to draft — publish it to make it public again."); renderAll();
+    } else if (action === "delete") {
+      var impactD = Store.relationshipsTouching(id).length;
+      var deleteMsg = kind === "rel" ? "Permanently delete this relationship?" :
+        "Permanently delete this " + KIND_NOUN[kind] + (impactD ? " and " + impactD + " relationship(s) referencing it" : "") + "? This cannot be undone.";
+      if (!window.confirm(deleteMsg)) return;
+      await DELETE_BY_KIND[kind](id);
+      showToast(title(KIND_NOUN[kind]) + " deleted."); renderAll();
+    }
+  }
+
   function wireEvents() {
     $$(".nav-btn").forEach(function (button) { button.addEventListener("click", function () { showPage(button.dataset.page); }); });
     $$('[data-go]').forEach(function (button) { button.addEventListener("click", function () { showPage(button.dataset.go); }); });
     $$('[data-close]').forEach(function (button) { button.addEventListener("click", function () { document.getElementById(button.dataset.close).close(); }); });
 
-    $("#orgSearch").addEventListener("input", renderAll);
-    $("#orgConfidence").addEventListener("change", renderAll);
-    $("#projectSearch").addEventListener("input", renderAll);
-    $("#relSearch").addEventListener("input", renderAll);
+    ["#orgSearch", "#orgConfidence", "#orgStatus", "#projectSearch", "#projectStatus", "#themeSearch", "#themeStatus", "#relSearch", "#relStatus"].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener(el.tagName === "SELECT" ? "change" : "input", renderAll);
+    });
     $("#addOrganisationBtn").addEventListener("click", function () { openOrganisation(); });
     $("#addProjectBtn").addEventListener("click", function () { openProject(); });
+    $("#addThemeBtn").addEventListener("click", function () { openTheme(); });
     $("#addRelationshipBtn").addEventListener("click", function () { openRelationship(); });
     $("#addSourceBtn").addEventListener("click", function () { openSource(); });
     $("#exportBtn").addEventListener("click", exportData);
 
     document.addEventListener("click", async function (event) {
       try {
-      var editOrg = event.target.closest("[data-edit-org]");
-      var deleteOrg = event.target.closest("[data-delete-org]");
-      var editProject = event.target.closest("[data-edit-project]");
-      var deleteProject = event.target.closest("[data-delete-project]");
-      var editRel = event.target.closest("[data-edit-rel]");
-      var deleteRel = event.target.closest("[data-delete-rel]");
-      var editSource = event.target.closest("[data-edit-source]");
-      var deleteSource = event.target.closest("[data-delete-source]");
-      if (editOrg) openOrganisation(editOrg.dataset.editOrg);
-      if (deleteOrg && window.confirm("Archive this organisation and remove its linked relationships from the demo dataset?")) {
-        await Store.deleteActor(deleteOrg.dataset.deleteOrg); showToast("Organisation archived."); renderAll();
-      }
-      if (editProject) openProject(editProject.dataset.editProject);
-      if (deleteProject && window.confirm("Archive this project and remove its linked relationships from the demo dataset?")) {
-        await Store.deleteProject(deleteProject.dataset.deleteProject); showToast("Project archived."); renderAll();
-      }
-      if (editRel) openRelationship(editRel.dataset.editRel);
-      if (deleteRel && window.confirm("Delete this relationship?")) {
-        await Store.deleteRelationship(deleteRel.dataset.deleteRel); showToast("Relationship deleted."); renderAll();
-      }
-      if (editSource) openSource(editSource.dataset.editSource);
-      if (deleteSource && window.confirm("Delete this source category?")) {
-        await Store.deleteSource(deleteSource.dataset.deleteSource); showToast("Source deleted."); renderAll();
-      }
+        var lifecycleBtn = event.target.closest("[data-action][data-kind][data-id]");
+        if (lifecycleBtn) {
+          var action = lifecycleBtn.dataset.action, kind = lifecycleBtn.dataset.kind, idValue = lifecycleBtn.dataset.id;
+          if (action === "edit") { OPEN_BY_KIND[kind](idValue); }
+          else { await handleLifecycleAction(action, kind, idValue); }
+          return;
+        }
+        var editSource = event.target.closest("[data-edit-source]");
+        var deleteSource = event.target.closest("[data-delete-source]");
+        if (editSource) openSource(editSource.dataset.editSource);
+        if (deleteSource && window.confirm("Delete this source category?")) {
+          await Store.deleteSource(deleteSource.dataset.deleteSource); showToast("Source deleted."); renderAll();
+        }
       } catch (error) { showToast(error.message, true); }
     });
 
@@ -298,8 +447,9 @@
         state: $("#orgState").value, dataConfidence: $("#orgConfidenceField").value,
         summary: $("#orgSummary").value.trim(), sectors: list($("#orgSectors").value), themes: list($("#orgThemes").value),
         website: $("#orgWebsite").value.trim(), lastUpdated: $("#orgUpdated").value, sourceNotes: lines($("#orgSourceNotes").value),
+        offices: textToOffices($("#orgOffices").value),
       }));
-      $("#organisationDialog").close(); showToast(original ? "Organisation updated." : "Organisation created."); renderAll();
+      $("#organisationDialog").close(); showToast(original ? "Draft saved. Publish to update the public directory." : "Draft created. Publish when it is ready to go live."); renderAll();
       } catch (error) { showToast(error.message, true); }
     });
 
@@ -313,7 +463,7 @@
         type: $("#relType").value, confidence: $("#relConfidence").value,
         intensity: existingRel ? existingRel.intensity : "medium", evidence: $("#relEvidence").value.trim(), lastUpdated: new Date().toISOString().slice(0, 10),
       });
-      $("#relationshipDialog").close(); showToast("Relationship saved."); renderAll();
+      $("#relationshipDialog").close(); showToast("Draft saved. Publish to make it public (both ends must be published first)."); renderAll();
       } catch (error) { showToast(error.message, true); }
     });
 
@@ -328,7 +478,19 @@
         themes: list($("#projectThemes").value), lastUpdated: $("#projectUpdated").value,
         evidenceSnippet: $("#projectEvidence").value.trim(),
       });
-      $("#projectDialog").close(); showToast(original ? "Project updated." : "Project created."); renderAll();
+      $("#projectDialog").close(); showToast(original ? "Draft saved. Publish to update the public directory." : "Draft created. Publish when it is ready to go live."); renderAll();
+      } catch (error) { showToast(error.message, true); }
+    });
+
+    $("#themeForm").addEventListener("submit", async function (event) {
+      event.preventDefault();
+      try {
+      var original = $("#themeOriginalId").value;
+      await Store.upsertTheme({
+        id: original || $("#themeId").value.trim(), name: $("#themeName").value.trim(), type: "research_theme",
+        dataConfidence: $("#themeConfidence").value, summary: $("#themeSummary").value.trim(), lastUpdated: $("#themeUpdated").value,
+      });
+      $("#themeDialog").close(); showToast(original ? "Draft saved. Publish to update the public directory." : "Draft created. Publish when it is ready to go live."); renderAll();
       } catch (error) { showToast(error.message, true); }
     });
 
@@ -353,7 +515,7 @@
     });
 
     $("#resetBtn").addEventListener("click", async function () {
-      var resetMessage = Auth.isDemo() ? "Restore the original demo dataset in this browser?" : "Restore the original shared demo dataset? This affects all visitors.";
+      var resetMessage = window.RD_ADMIN_AUTH.isDemo() ? "Restore the original demo dataset in this browser? All drafts and publish state will be reset." : "Restore the original shared demo dataset? This affects all visitors.";
       if (!window.confirm(resetMessage)) return;
       try { await Store.reset(); showToast("Demo data restored."); renderAll(); }
       catch (error) { showToast(error.message, true); }
@@ -383,7 +545,7 @@
   requireLogin().then(async function (allowed) {
     if (!allowed) return;
     if (window.RD_ADMIN_AUTH.isDemo()) {
-      $(".notice").textContent = "Sprint demo mode: changes affect only synthetic data saved in this browser. This login is for demonstration and does not secure real management data.";
+      $(".notice").textContent = "Sprint demo mode: changes affect only synthetic data saved in this browser, and still follow the draft/publish workflow below. This login is for demonstration and does not secure real management data.";
       $(".side-note").innerHTML = "<strong>Demo workspace</strong>Changes are saved in this browser. Export JSON to keep a copy before clearing browser data.";
       $("#page-history .page-head p").textContent = "Browser-local history of changes to the synthetic demonstration dataset.";
     }

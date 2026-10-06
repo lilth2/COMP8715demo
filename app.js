@@ -87,7 +87,8 @@
   }
   function linkSpan(id) {
     var n = nodeById(id);
-    return '<a href="#" class="entity-link" data-id="' + esc(id) + '">' + esc(n ? n.name : id) + "</a>";
+    if (!n) return '<span class="entity-link-unavailable" title="This record is no longer published.">Unavailable</span>';
+    return '<a href="#" class="entity-link" data-id="' + esc(id) + '">' + esc(n.name) + "</a>";
   }
   function chipHTML(value, label, active, dotColor) {
     return '<button class="chip" data-value="' + esc(value) + '" aria-pressed="' + (active ? "true" : "false") + '">' +
@@ -179,6 +180,7 @@
       if (sec) sec.hidden = v !== view;
     });
     $$("#tabbar .tab-btn").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.view === view ? "true" : "false"); });
+    renderDataNotice();
     if (view === "overview") renderOverview();
     else if (view === "directory") { renderDirFilterPanel(); renderDirectory(); }
     else if (view === "network") { renderNetFilterPanel(); renderGraph(); renderNetActions(); }
@@ -189,7 +191,34 @@
   }
 
   // ---------------------------------------------------------------- overview
+  function renderDataNotice() {
+    var loadError = window.RD_ADMIN_STORE.loadError;
+    var banner = $("#globalDataError");
+    if (banner) {
+      banner.hidden = !loadError;
+      if (loadError) {
+        banner.innerHTML = "The live dataset could not be loaded (" + esc(loadError) + "). No placeholder data is shown. " +
+          '<button class="retry-btn" id="globalRetryBtn" type="button">Retry</button>';
+        var gr = $("#globalRetryBtn");
+        if (gr) gr.addEventListener("click", function () { window.RD_ADMIN_STORE.reload().then(function (ok) { if (ok) rerenderCurrent(); else renderDataNotice(); }); });
+      }
+    }
+    var notice = $("#dataNotice");
+    if (!notice) return;
+    notice.classList.toggle("error", Boolean(loadError));
+    if (loadError) {
+      notice.innerHTML = "⚠ The live dataset could not be loaded (" + esc(loadError) + "). Showing no records rather than placeholder data." +
+        '<button class="retry-btn" id="dataRetryBtn" type="button">Retry</button>';
+      var retry = $("#dataRetryBtn");
+      if (retry) retry.addEventListener("click", function () { window.location.reload(); });
+    } else if (!D.actors.length && !D.themeNodes.length && !D.projectNodes.length) {
+      notice.textContent = "No published records yet. Content added in the administrator console appears here once it is published.";
+    } else {
+      notice.textContent = "⚠ Demo data only. Synthetic and public-style examples — not a factual record of any real organisation.";
+    }
+  }
   function renderOverview() {
+    renderDataNotice();
     $("#quickGrid").innerHTML =
       '<button class="quick-card" data-view="directory" aria-label="Search Directory: Find CRCs, NCRIS facilities, universities and more."><div class="qc-title">Search Directory</div><div class="qc-desc">Find CRCs, NCRIS facilities, universities and more.</div></button>' +
       '<button class="quick-card" data-view="network" aria-label="Explore Network: See how organisations and themes connect."><div class="qc-title">Explore Network</div><div class="qc-desc">See how organisations and themes connect.</div></button>' +
@@ -442,6 +471,13 @@
     var n = nodeById(id);
     return n ? themeIdsOfNode(n).indexOf(themeId) !== -1 : false;
   }
+  function ensureCenter() {
+    if (state.centerNodeId && nodeById(state.centerNodeId)) return true;
+    var adj = buildAdjacency(null), best = null, bestDeg = -1;
+    D.allNodes.forEach(function (n) { var d = (adj.get(n.id) || []).length; if (d > bestDeg) { best = n.id; bestDeg = d; } });
+    state.centerNodeId = best;
+    return Boolean(best);
+  }
   function computeLayout() {
     var dist = bfsLayer(state.centerNodeId, state.hop, state.netFilters.relTypes);
     var nodeIds = Array.from(dist.keys());
@@ -480,6 +516,12 @@
   function textWidth(str, size) { return String(str).length * size * 0.56; }
 
   function renderGraph() {
+    if (!ensureCenter()) {
+      $("#edgesLayer").innerHTML = "";
+      $("#nodesLayer").innerHTML = "";
+      $("#nodesLayer").appendChild(elSvg("text", { x: 560, y: 380, "text-anchor": "middle", class: "sub-text", "font-size": 15 }, "No published records to display."));
+      return;
+    }
     var layout = computeLayout();
     var nodeSet = new Set(layout.nodeIds);
     var edgesLayer = $("#edgesLayer"), nodesLayer = $("#nodesLayer");
@@ -813,8 +855,6 @@
       fieldRow("Research themes", (node.themes || []).map(function (t) { return '<span class="tag-pill">' + esc(themeLabel(t)) + "</span>"; }).join(" ")) +
       fieldRow("Host / partners", node.hostOrPartners ? esc(node.hostOrPartners) : "") +
       fieldRow("Active initiatives", (node.activeInitiatives || []).map(esc).join(", ")) +
-      fieldRow("Industry partners", (node.industryPartners || []).map(linkSpan).join(", ")) +
-      fieldRow("Related facilities", (node.relatedFacilities || []).map(linkSpan).join(", ")) +
       fieldRow("Collaboration signal", node.collaborationSignal ? cap(node.collaborationSignal) : "") +
       fieldRow("Data confidence", confidenceBadgeHTML(node.dataConfidence)) +
       fieldRow("Last updated", node.lastUpdated) + "</dl>" +
@@ -842,8 +882,6 @@
     return "<p>" + esc(node.summary || "") + '</p><dl class="field-grid">' +
       fieldRow("Geographic distribution", node.geographicDistribution ? esc(node.geographicDistribution) : "") +
       fieldRow("Historical trend", node.historicalTrend ? esc(node.historicalTrend) : "") +
-      fieldRow("Key actors", (node.keyActorIds || []).map(linkSpan).join(", ")) +
-      fieldRow("Related projects", (node.relatedProjects || []).map(linkSpan).join(", ")) +
       fieldRow("Data confidence", confidenceBadgeHTML(node.dataConfidence)) +
       fieldRow("Last updated", node.lastUpdated) + "</dl>" +
       (node.gaps && node.gaps.length ? '<div><div class="section-label" style="margin:6px 0 8px;">Known gaps</div><ul class="gap-list">' +
@@ -959,7 +997,7 @@
     var terms = [];
     nodes.forEach(function (n) { terms.push(n.name.toLowerCase()); if (n.state) terms.push(stateName(n.state).toLowerCase()); });
     shortlistedThemeIds.forEach(function (t) { terms.push(themeLabel(t).toLowerCase()); });
-    var gaps = (D.insights.decarbonisationGaps || []).filter(function (g) {
+    var gaps = computeInsights().gaps.filter(function (g) {
       var gl = g.toLowerCase();
       return terms.some(function (t) { return t && gl.indexOf(t) !== -1; });
     });
@@ -967,13 +1005,13 @@
       ? '<div><h5>Relevant data gaps</h5><ul class="list-compact">' + gaps.map(function (g) { return "<li>" + esc(g) + "</li>"; }).join("") + "</ul></div>"
       : "";
 
-    var followUps = D.questions.filter(function (q) {
+    var followUps = availableQuestions().filter(function (q) {
       return (q.relevantEntityIds || []).some(function (id) {
         var n = nodeById(id);
         return n && themeIdsOfNode(n).some(function (t) { return shortlistedThemeIds.has(t); });
       });
     }).map(function (q) { return q.query; });
-    if (!followUps.length) followUps = D.questions.slice(0, 2).map(function (q) { return q.query; });
+    if (!followUps.length) followUps = availableQuestions().slice(0, 2).map(function (q) { return q.query; });
     followUps = followUps.slice(0, 3);
     var followUpsHTML = '<div><h5>Suggested AI Discovery follow-ups</h5><div class="chips">' +
       followUps.map(function (q) { return '<button class="btn-mini briefing-followup" data-q="' + esc(q) + '">' + esc(q) + "</button>"; }).join("") + "</div></div>";
@@ -1010,10 +1048,18 @@
   }
 
   // -------------------------------------------------------------- AI discovery
+  // The question bank in data.js is hand-written, scripted demo content (it is not
+  // generated from Admin data), so an entry is only offered while every record it
+  // refers to is currently published, and the view says so.
+  function availableQuestions() {
+    return (D.questions || []).filter(function (q) {
+      return (q.relevantEntityIds || []).every(function (id) { return Boolean(nodeById(id)); });
+    });
+  }
   function matchQuestion(query) {
     var q = query.toLowerCase();
     var best = null, bestScore = 0;
-    D.questions.forEach(function (item) {
+    availableQuestions().forEach(function (item) {
       var score = 0;
       (item.matchKeywords || []).forEach(function (k) { if (q.indexOf(k.toLowerCase()) !== -1) score++; });
       if (score > bestScore) { bestScore = score; best = item; }
@@ -1087,7 +1133,10 @@
     thread.scrollTop = thread.scrollHeight;
   }
   function renderAI() {
-    $("#aiSuggest").innerHTML = D.questions.map(function (q) { return '<button data-q="' + esc(q.query) + '">' + esc(q.query) + "</button>"; }).join("");
+    var qs = availableQuestions();
+    var note = $("#aiScriptedNote");
+    if (note) note.textContent = qs.length ? "Scripted demo answers: these canned responses are not generated from the Admin data and may not reflect edits made there. Entries disappear when a record they cite is not published." : "No scripted answers are available for the currently published records.";
+    $("#aiSuggest").innerHTML = qs.map(function (q) { return '<button data-q="' + esc(q.query) + '">' + esc(q.query) + "</button>"; }).join("");
     $$("#aiSuggest button").forEach(function (b) { b.addEventListener("click", function () { $("#aiInput").value = b.dataset.q; askAI(b.dataset.q); }); });
   }
 
@@ -1147,6 +1196,9 @@
     renderGeo();
   }
   function renderGeo() {
+    var noPin = D.actors.filter(function (a) { return !a.offices || !a.offices.length; });
+    var geoNote = $("#geoUnmapped");
+    if (geoNote) geoNote.textContent = noPin.length ? "Map location unavailable for " + noPin.length + " published organisation(s) with no recorded office: " + noPin.map(function (a) { return a.name; }).join(", ") + "." : "";
     $$("#auMap .au-state").forEach(function (g) {
       var code = g.dataset.code;
       var region = D.regions.filter(function (r) { return r.code === code; })[0] || {};
@@ -1217,12 +1269,14 @@
     var region = D.regions.filter(function (r) { return r.code === state.selectedState; })[0];
     if (!region) { el.innerHTML = "No data for this state in the pilot subset."; return; }
     var linkedActors = D.actors.filter(function (a) { return a.state === state.selectedState; });
+    var unmapped = linkedActors.filter(function (a) { return !a.offices || !a.offices.length; });
     el.innerHTML = '<div style="font-weight:700;margin-bottom:6px;">' + esc(region.name) + "</div>" +
       "<div>CRCs: " + (region.crcCount || 0) + " · NCRIS facilities: " + (region.ncrisCount || 0) + " · Organisations: " + (region.orgCount || 0) + "</div>" +
       "<div>Capability density: " + esc(cap(region.capabilityDensity || "—")) + (region.decarbHotspot ? " · <strong>Decarbonisation hotspot</strong>" : "") + "</div>" +
       "<div>Collaboration links: " + (region.collaborationLinks || 0) + "</div>" +
       (linkedActors.length ? '<div class="rc-tags" style="margin-top:8px;">' + linkedActors.map(function (a) { return linkChip(a.id); }).join("") + "</div>" :
-        '<div class="drawer-note">No pilot actors located in this state.</div>') +
+        '<div class="drawer-note">No published organisations are located in this state.</div>') +
+      (unmapped.length ? '<div class="drawer-note">Map location unavailable (no office recorded): ' + unmapped.map(function (a) { return esc(a.name); }).join(", ") + "</div>" : "") +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">' +
       '<button class="btn-mini" id="viewInDirectoryBtn">View in Directory</button>' +
       (linkedActors.length ? '<button class="btn-mini" id="centreNetworkBtn">Centre network here</button>' : "") +
@@ -1236,62 +1290,104 @@
     });
   }
   // -------------------------------------------------------------- insights
+  // Every figure below is computed from the published records and relationships
+  // currently loaded in D; nothing is read from a hand-written insights table.
+  function groupOf(n) { return (D.TYPE_META[n.type] || {}).group; }
+  function computeInsights() {
+    var adj = buildAdjacency(null);
+    var actors = D.actors;
+    var crcs = actors.filter(function (a) { return a.type === "crc"; });
+    var facilities = actors.filter(function (a) { return a.type === "ncris_facility"; });
+    var matrix = crcs.map(function (c) {
+      return facilities.map(function (f) {
+        return D.relationships.filter(function (r) {
+          return (r.sourceId === c.id && r.targetId === f.id) || (r.sourceId === f.id && r.targetId === c.id);
+        }).length;
+      });
+    });
+    var bridging = actors.map(function (a) {
+      var groups = new Set(), orgLinks = 0;
+      (adj.get(a.id) || []).forEach(function (e) {
+        var o = nodeById(e.to);
+        if (!o || o.type === "research_theme" || o.type === "project_initiative") return;
+        orgLinks++;
+        if (groupOf(o)) groups.add(groupOf(o));
+      });
+      return { actorId: a.id, groups: groups.size, links: orgLinks };
+    }).filter(function (b) { return b.groups >= 2; })
+      .sort(function (a, b) { return b.groups - a.groups || b.links - a.links; }).slice(0, 5);
+    var degrees = actors.map(function (a) {
+      var peers = new Set();
+      (adj.get(a.id) || []).forEach(function (e) { var o = nodeById(e.to); if (o && o.type !== "research_theme" && o.type !== "project_initiative") peers.add(e.to); });
+      return { actorId: a.id, peers: peers.size };
+    }).filter(function (d) { return d.peers > 0; }).sort(function (a, b) { return b.peers - a.peers; }).slice(0, 5);
+    var underConnected = D.STATES.filter(function (st) {
+      return !crcs.concat(facilities).some(function (a) { return a.state === st.code; });
+    }).map(function (st) { return { code: st.code, note: "No published CRC or NCRIS facility located here." }; });
+    var gaps = [];
+    crcs.forEach(function (c) {
+      if (!facilities.some(function (f) { return D.relationships.some(function (r) { return (r.sourceId === c.id && r.targetId === f.id) || (r.sourceId === f.id && r.targetId === c.id); }); })) {
+        gaps.push(c.name + " has no published link to an NCRIS facility.");
+      }
+    });
+    var opportunities = D.relationships.filter(function (r) { return r.type === "potential_connection"; }).map(function (r) {
+      return { text: nodeName(r.sourceId) + " \u2194 " + nodeName(r.targetId) + ": " + (r.evidence || "Flagged as a potential connection."), confidence: r.confidence };
+    });
+    return { crcs: crcs, facilities: facilities, matrix: matrix, bridging: bridging, topConnected: degrees, underConnected: underConnected, gaps: gaps, opportunities: opportunities };
+  }
   function insightCard(title, bodyHTML) { return '<div class="insight-card"><h3>' + esc(title) + "</h3>" + bodyHTML + "</div>"; }
-  function insightClustersHTML(clusters) {
-    var strengthPct = { strong: 100, medium: 65, weak: 35 };
-    return clusters.map(function (c) {
-      return '<div class="bar-row"><div class="b-label">' + esc(c.name) + '</div><div class="bar-track"><div class="bar-fill" style="width:' +
-        (strengthPct[c.strength] || 50) + '%"></div></div></div>' +
-        '<div class="rc-tags" style="margin:2px 0 10px;">' + c.actorIds.map(linkChip).join("") + "</div>";
+  var NO_DATA = '<p style="font-size:12.5px;color:var(--ink-muted);">Nothing to show from the currently published records.</p>';
+  function insightTopConnectedHTML(list) {
+    if (!list.length) return NO_DATA;
+    var max = list[0].peers;
+    return list.map(function (d) {
+      return '<div class="bar-row"><button class="btn-mini entity-chip" data-id="' + esc(d.actorId) + '" style="width:150px;flex:none;text-align:left;">' + esc(nodeName(d.actorId)) +
+        '</button><div class="bar-track"><div class="bar-fill" style="width:' + Math.round(d.peers / max * 100) + '%"></div></div><span style="font-size:11px;color:var(--ink-muted);">' + d.peers + "</span></div>";
     }).join("");
   }
   function insightUnderConnectedHTML(list) {
-    return '<ul class="gap-list">' + list.map(function (r) { return "<li><strong>" + esc(r.code) + "</strong> — " + esc(r.note) + "</li>"; }).join("") + "</ul>";
-  }
-  function insightFastGrowingHTML(list) {
-    var arrow = { up: "▲ Growing", steady: "▬ Steady", down: "▼ Declining" };
-    return '<div class="rc-tags">' + list.map(function (t) {
-      return '<span class="trend-pill">' + esc(themeLabel(t.themeId)) + " " + esc(arrow[t.trend] || t.trend) + "</span>";
-    }).join("") + "</div>";
+    if (!list.length) return NO_DATA;
+    return '<ul class="gap-list">' + list.map(function (r) { return "<li><strong>" + esc(r.code) + "</strong> \u2014 " + esc(r.note) + "</li>"; }).join("") + "</ul>";
   }
   function insightBridgingHTML(list) {
+    if (!list.length) return NO_DATA;
     return list.map(function (b) {
       return '<div class="bar-row"><button class="btn-mini entity-chip" data-id="' + esc(b.actorId) + '" style="width:150px;flex:none;text-align:left;">' +
-        esc(nodeName(b.actorId)) + '</button><div class="bar-track"><div class="bar-fill" style="width:' + Math.round(b.score * 100) +
-        '%;background:var(--group-industry);"></div></div></div><div class="rc-evidence" style="margin-bottom:10px;">' + esc(b.note) + "</div>";
+        esc(nodeName(b.actorId)) + '</button><div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, b.groups * 33) +
+        '%;background:var(--group-industry);"></div></div></div><div class="rc-evidence" style="margin-bottom:10px;">Linked to ' + b.links + " organisation(s) across " + b.groups + " sector groups.</div>";
     }).join("");
   }
   function insightMatrixHTML(s) {
+    if (!s.crcs.length || !s.facilities.length) return NO_DATA;
     var max = Math.max.apply(null, [1].concat(s.matrix.reduce(function (a, row) { return a.concat(row); }, [])));
-    var html = '<p style="font-size:11px;color:var(--ink-muted);margin:0 0 10px;">Each cell is the number of identified collaboration links between that CRC and that NCRIS facility; darker shading = a higher count relative to the strongest pair shown.</p>';
+    var html = '<p style="font-size:11px;color:var(--ink-muted);margin:0 0 10px;">Each cell is the number of published relationships between that CRC and that NCRIS facility; darker shading = a higher count relative to the strongest pair shown.</p>';
     html += '<div class="heat-grid" style="grid-template-columns:120px repeat(' + s.facilities.length + ',1fr);">';
-    html += "<div></div>" + s.facilities.map(function (f) { return '<div style="font-size:10px;color:var(--ink-muted);text-align:center;">' + esc(nodeName(f)) + "</div>"; }).join("");
-    s.crcs.forEach(function (crcId, i) {
-      html += '<div style="font-size:11px;color:var(--ink-secondary);display:flex;align-items:center;">' + esc(nodeName(crcId)) + "</div>";
+    html += "<div></div>" + s.facilities.map(function (f) { return '<div style="font-size:10px;color:var(--ink-muted);text-align:center;">' + esc(f.name) + "</div>"; }).join("");
+    s.crcs.forEach(function (crc, i) {
+      html += '<div style="font-size:11px;color:var(--ink-secondary);display:flex;align-items:center;">' + esc(crc.name) + "</div>";
       s.matrix[i].forEach(function (v) {
         var alpha = v ? 0.15 + 0.75 * (v / max) : 0.06;
         html += '<div class="heat-cell" style="background:rgba(42,120,214,' + alpha + ');">' + v + "</div>";
       });
     });
-    html += "</div>";
-    return html;
+    return html + "</div>";
   }
   function insightGapsHTML(gaps, opps) {
-    return '<div class="section-label" style="margin:0 0 8px;">Gaps</div><ul class="gap-list">' +
-      gaps.map(function (g) { return "<li>" + esc(g) + "</li>"; }).join("") + "</ul>" +
-      '<div class="section-label" style="margin:16px 0 8px;">Opportunities</div><ul class="opp-list">' +
-      opps.map(function (o) { return "<li>" + esc(o.text) + " " + confidenceBadgeHTML(o.confidence) + "</li>"; }).join("") + "</ul>";
+    return '<div class="section-label" style="margin:0 0 8px;">Gaps</div>' +
+      (gaps.length ? '<ul class="gap-list">' + gaps.map(function (g) { return "<li>" + esc(g) + "</li>"; }).join("") + "</ul>" : NO_DATA) +
+      '<div class="section-label" style="margin:16px 0 8px;">Potential connections</div>' +
+      (opps.length ? '<ul class="opp-list">' + opps.map(function (o) { return "<li>" + esc(o.text) + " " + confidenceBadgeHTML(o.confidence) + "</li>"; }).join("") + "</ul>" : NO_DATA);
   }
   function renderInsights() {
-    var ins = D.insights;
+    var ins = computeInsights();
     $("#insightGrid").innerHTML = [
-      insightCard("Top collaboration clusters", insightClustersHTML(ins.topCollaborationClusters)),
-      insightCard("Under-connected regions", insightUnderConnectedHTML(ins.underConnectedRegions)),
-      insightCard("Fast-growing themes", insightFastGrowingHTML(ins.fastGrowingThemes)),
-      insightCard("Bridging organisations", insightBridgingHTML(ins.bridgingOrgs)),
-      insightCard("CRC × NCRIS facility strength", insightMatrixHTML(ins.crcNcrisStrength)),
-      insightCard("Decarbonisation gaps &amp; opportunities", insightGapsHTML(ins.decarbonisationGaps, ins.opportunities)),
+      insightCard("Most connected organisations", insightTopConnectedHTML(ins.topConnected)),
+      insightCard("Regions without a CRC or NCRIS facility", insightUnderConnectedHTML(ins.underConnected)),
+      insightCard("Bridging organisations", insightBridgingHTML(ins.bridging)),
+      insightCard("CRC \u00d7 NCRIS facility links", insightMatrixHTML(ins)),
+      insightCard("Gaps &amp; potential connections", insightGapsHTML(ins.gaps, ins.opportunities)),
     ].join("");
+    $$("#insightGrid .entity-chip").forEach(function (b) { b.addEventListener("click", function () { openEntity(b.dataset.id); }); });
   }
 
   // -------------------------------------------------------------- data trust
@@ -1319,12 +1415,13 @@
     },
     // Step 2 — Open a Directory result to see its full entity profile.
     function () {
-      openEntity("fbi-crc");
+      var first = D.actors[0];
+      if (first) openEntity(first.id);
     },
     // Step 3 — Switch to the Ecosystem Network, centred on "Decarbonisation".
     function () {
       switchView("network");
-      state.centerNodeId = "decarbonisation";
+      if (nodeById("decarbonisation")) state.centerNodeId = "decarbonisation";
       state.hop = 2;
       $$("#hopSeg button").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.hop === "2" ? "true" : "false"); });
       renderNetFilterPanel();
@@ -1531,11 +1628,25 @@
     });
   }
 
+  function rerenderCurrent() {
+    state.shortlist.forEach(function (id) { if (!nodeById(id)) state.shortlist.delete(id); });
+    if (state.selectedNodeId && !nodeById(state.selectedNodeId)) { state.selectedNodeId = null; closeDrawer(); }
+    updateShortlistBadge();
+    switchView(state.view);
+  }
   function init() {
     wireGlobalUI();
     updateShortlistBadge();
     applyTransform();
     switchView("overview");
+    // Published data can change while this page is open (publish / withdraw / edit
+    // in the admin console). Demo mode is signalled by the storage event; backend
+    // mode has no push channel, so re-fetch whenever the tab regains focus.
+    window.addEventListener("rd-admin-data-changed", function () { if (window.__rdInitDone) rerenderCurrent(); });
+    window.__rdInitDone = true;
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible" && window.RD_ADMIN_STORE.reload) window.RD_ADMIN_STORE.reload();
+    });
   }
   window.RD_ADMIN_STORE.ready.then(init);
 })();

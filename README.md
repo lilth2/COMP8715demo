@@ -37,6 +37,27 @@ The current admin console provides a working prototype of the maintenance workfl
 - keep a local change history;
 - import and export the managed dataset as JSON.
 
+## Draft and publish workflow
+
+Admin is the single source of truth. Every organisation, project, research theme and relationship has a status:
+
+| Status | Meaning |
+| --- | --- |
+| `draft` | Saved in Admin only. New records start here. Never returned by the public API. |
+| `published` | Visible publicly. The public copy is a stored snapshot taken at publish time. |
+| `archived` | Retired but kept in Admin. Not public. Restore returns it to `draft`. |
+
+- **Save** never changes what the public sees. Editing a published record keeps the last published snapshot public and shows "unpublished changes" in Admin until you click **Publish changes**.
+- **Publish** asks for confirmation and shows the content. **Withdraw** returns a published record to `draft`. **Preview** shows a record, its visibility and its relationships (Admin is login-protected).
+- A relationship can be published only when both ends are published. The public API additionally drops any relationship whose endpoint is not currently published, so withdrawing or archiving an entity never leaves a dangling edge. Deleting an entity also deletes its relationships (Admin warns with the count first).
+- Public pages (Directory, search, filters, counts, Ecosystem Network, Geography, Insights, Data Trust) render only the published data supplied by `GET /api/dataset`. Insights, region counts and hotspots are computed from it. The AI Discovery question bank is scripted demo content: an entry is offered only while every record it cites is published, and the view says so.
+- Empty published data shows an empty state; a failed request shows an error banner with Retry and no placeholder records. Map pins come from each organisation's recorded offices (state-level placement; the model has no coordinates). Organisations without an office are listed as "location unavailable".
+- Public pages re-fetch when the tab regains focus. In browser demo mode an open public tab updates through the `storage` event.
+
+**Migration.** Records that existed before this workflow (including an existing `dataset.json`, which has no `status`) are migrated as `published` with their current fields as the published snapshot, so nothing that was public disappears and nothing is newly exposed. A legacy file is copied once to `dataset.json.pre-publish-workflow.bak` before it is rewritten. Seed research themes are now stored in the dataset (`themes`) so they can be managed.
+
+**Browser demo mode limits.** On GitHub Pages the dataset lives in this browser's `localStorage`. It is not shared across browsers, devices or users, and clearing site data loses it. Use Export JSON to keep a copy.
+
 With the backend, changes are saved in `backend/.private/dataset.json` and the public directory fetches shared records. Administrator mutations and audit history require a server session. In the GitHub Pages Sprint demo, changes affect only synthetic records in the current browser's localStorage. Export JSON to transfer demo records; old browser-local records are not migrated automatically.
 
 ## Authentication and deployment

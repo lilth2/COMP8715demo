@@ -36,6 +36,11 @@ test("anonymous access is blocked and private files are never served", async t =
   assert.equal((await fetch(f.base + "/admin/console.js")).status, 401);
   assert.equal((await fetch(f.base + "/api/admin/dataset")).status, 401);
   assert.equal((await f.post("/api/admin/action", { operation: "reset" })).status, 401);
+  for (const operation of ["upsertActor", "upsertRelationship", "upsertTheme", "publish", "withdraw", "archive", "restore", "deleteActor"]) {
+    assert.equal((await f.post("/api/admin/action", { operation, value: { collection: "actors" }, id: "hilt-crc" })).status, 401, operation + " must require login");
+  }
+  const publicBody = JSON.stringify(await (await fetch(f.base + "/api/dataset")).json());
+  assert.equal(publicBody.includes("publishedSnapshot"), false, "public API must not leak draft bookkeeping");
   for (const filename of ["backend/.private/admin-account.json", "backend/server.js", "backend/setup-admin.js", "README.md", ".git/config"]) assert.equal((await fetch(f.base + "/" + filename)).status, 404);
   assert.equal((await f.post("/api/register", {})).status, 404);
 });
@@ -68,19 +73,43 @@ test("GitHub Pages origin can authenticate; unexpected origins cannot", async t 
   assert.equal((await f.post("/api/login", {}, undefined, "https://untrusted.example")).status, 403);
 });
 
-test("authenticated edits persist; public responses omit administrator audit details", async t => {
+test("authenticated edits persist as drafts; public responses omit drafts and administrator audit details", async t => {
   const f = await fixture(t);
   const login = await f.login();
   const actor = { id: "test-research", name: "Test Research", type: "research_institute", state: "NSW", summary: "Test record.", themes: [], sectors: [], sourceNotes: [], dataConfidence: "needs-review", lastUpdated: "2026-10-03" };
   const response = await f.post("/api/admin/action", { operation: "upsertActor", value: actor }, login.token);
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).audit[0].actor, "admin");
+  const afterCreate = await response.json();
+  assert.equal(afterCreate.audit[0].actor, "admin");
+  assert.equal(afterCreate.actors.find(item => item.id === actor.id).status, "draft");
   assert.equal(JSON.parse(fs.readFileSync(f.dataPath, "utf8")).actors.some(item => item.id === actor.id), true);
   const reopened = require("../server-data").createDataStore(f.dataPath);
   assert.equal(reopened.snapshot().actors.some(item => item.id === actor.id), true);
+
+  // A brand-new record is a draft: invisible on the public API until published.
+  const beforePublish = await (await fetch(f.base + "/api/dataset")).json();
+  assert.equal(beforePublish.actors.some(item => item.id === actor.id), false);
+
+  const publishResponse = await f.post("/api/admin/action", { operation: "publish", value: { collection: "actors" }, id: actor.id }, login.token);
+  assert.equal(publishResponse.status, 200);
+  assert.equal((await publishResponse.json()).actors.find(item => item.id === actor.id).status, "published");
   const publicData = await (await fetch(f.base + "/api/dataset")).json();
   assert.equal(publicData.actors.some(item => item.id === actor.id), true);
   assert.equal(publicData.audit, undefined);
+
+  // Editing a published record (saving a draft) must not change the public copy.
+  await f.post("/api/admin/action", { operation: "upsertActor", value: { ...actor, name: "Edited Name Pending Review" } }, login.token);
+  const stillOldPublicName = await (await fetch(f.base + "/api/dataset")).json();
+  assert.equal(stillOldPublicName.actors.find(item => item.id === actor.id).name, "Test Research");
+  await f.post("/api/admin/action", { operation: "publish", value: { collection: "actors" }, id: actor.id }, login.token);
+  const updatedPublicName = await (await fetch(f.base + "/api/dataset")).json();
+  assert.equal(updatedPublicName.actors.find(item => item.id === actor.id).name, "Edited Name Pending Review");
+
+  // Withdraw takes it back to draft and off the public API; restore-then-publish brings it back.
+  await f.post("/api/admin/action", { operation: "withdraw", value: { collection: "actors" }, id: actor.id }, login.token);
+  const afterWithdraw = await (await fetch(f.base + "/api/dataset")).json();
+  assert.equal(afterWithdraw.actors.some(item => item.id === actor.id), false);
+
   assert.equal((await f.post("/api/admin/action", { operation: "upsertActor", value: { ...actor, type: "invalid" } }, login.token)).status, 400);
   assert.equal((await f.post("/api/admin/action", { operation: "importState", value: {} }, login.token)).status, 400);
   assert.equal((await f.post("/api/admin/action", { operation: "__proto__" }, login.token)).status, 400);

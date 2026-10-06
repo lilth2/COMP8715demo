@@ -6,8 +6,10 @@
   Organisation names follow real-world naming conventions, but relationships,
   metrics, evidence snippets and confidence levels are fabricated for the demo
   and must not be treated as factual claims about any real organisation.
-  No external API, backend, or database is used — this object graph is the
-  entire "database" for the demo.
+  This file is the SEED only: the taxonomy (types, relationship kinds, states) and the
+  initial illustrative records. At runtime the public pages render the PUBLISHED
+  records supplied by the Admin store (backend API or browser demo store), which
+  replace these arrays; `questions` and `walkthrough` below are scripted demo content.
 */
 
 window.RD_DATA = (function () {
@@ -476,7 +478,7 @@ window.RD_DATA = (function () {
         if (n >= 1) return "medium";
         return "low";
       })(),
-      decarbHotspot: ["VIC", "WA"].indexOf(s.code) !== -1,
+      decarbHotspot: false, // derived from published records in admin/store.js
       collaborationLinks: relationships.filter((r) => {
         const src = allNodes.find((n) => n.id === r.sourceId);
         const tgt = allNodes.find((n) => n.id === r.targetId);
@@ -550,52 +552,6 @@ window.RD_DATA = (function () {
       followUps: ["Which CRCs are active in decarbonisation?", "Show me suggested opportunities."],
     },
   ];
-
-  // ---------------------------------------------------------------------
-  // Ecosystem Intelligence / Insights
-  // ---------------------------------------------------------------------
-  const insights = {
-    topCollaborationClusters: [
-      { name: "Battery & Critical Minerals (WA)", actorIds: ["fbi-crc", "pawsey", "pilbara-cluster", "anff"], strength: "strong" },
-      { name: "Decarbonisation Policy & Finance (VIC/NSW)", actorIds: ["nzea", "cefc", "hilt-crc", "co2crc"], strength: "medium" },
-      { name: "Grid & Computation (NSW/ACT)", actorIds: ["race2030-crc", "anu-eci", "nci"], strength: "medium" },
-    ],
-    underConnectedRegions: [
-      { code: "QLD", note: "No confirmed CRC or NCRIS actor in this pilot subset." },
-      { code: "TAS", note: "No confirmed CRC or NCRIS actor in this pilot subset." },
-      { code: "NT", note: "No confirmed CRC or NCRIS actor in this pilot subset." },
-    ],
-    fastGrowingThemes: [
-      { themeId: "battery-storage", trend: "up" },
-      { themeId: "hydrogen-storage", trend: "up" },
-      { themeId: "carbon-capture", trend: "steady" },
-      { themeId: "grid-integration", trend: "up" },
-    ],
-    bridgingOrgs: [
-      { actorId: "cicada", score: 0.82, note: "Connects university/CRC research with industry-facing translation programs." },
-      { actorId: "csiro-energy", score: 0.9, note: "High-degree connector across CRCs, universities and an incubator." },
-      { actorId: "anff", score: 0.71, note: "Shared infrastructure link between a heavy-industry CRC and a battery CRC." },
-    ],
-    crcNcrisStrength: {
-      crcs: ["hilt-crc", "fbi-crc", "co2crc", "race2030-crc"],
-      facilities: ["anff", "nci", "pawsey"],
-      matrix: [
-        [2, 0, 0],
-        [3, 0, 1],
-        [0, 0, 0],
-        [0, 2, 0],
-      ],
-    },
-    decarbonisationGaps: [
-      "No confirmed CRC-to-NCRIS link in Queensland within this pilot subset.",
-      "Hydrogen-storage facility coverage is concentrated in ACT/NSW with no WA presence.",
-      "CO2CRC has no confirmed NCRIS infrastructure link in this pilot subset.",
-    ],
-    opportunities: [
-      { text: "Tonsley Innovation District capability may match CO2CRC decarbonisation manufacturing needs.", relatedActorIds: ["tonsley", "co2crc"], confidence: "needs-review" },
-      { text: "Pilbara industry partners could benefit from a formal link to UNSW Hydrogen Energy Research Centre.", relatedActorIds: ["pilbara-cluster", "unsw-hydrogen"], confidence: "needs-review" },
-    ],
-  };
 
   // ---------------------------------------------------------------------
   // Domains: a top-level grouping above individual research themes. Adding
@@ -691,6 +647,6 @@ window.RD_DATA = (function () {
   return {
     TYPE_META, RELATIONSHIP_META, CONFIDENCE_META, STATES, domains,
     actors, themeNodes, projectNodes, allNodes, relationships,
-    regions, questions, insights, explorerCategories, sources, walkthrough,
+    regions, questions, explorerCategories, sources, walkthrough,
   };
 })();

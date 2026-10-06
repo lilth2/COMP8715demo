@@ -28,6 +28,7 @@
     .panel{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}.panel-head h2{font-size:16px;margin:0;color:var(--navy)}.panel-body{padding:18px}.two-col{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
     .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}.search{min-width:260px;flex:1;border:1px solid #cbd5e0;background:#fff;border-radius:8px;padding:9px 11px}.select{border:1px solid #cbd5e0;background:#fff;border-radius:8px;padding:9px 11px}
     table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:#f7f9fb;padding:11px 12px;border-bottom:1px solid var(--line)}td{padding:12px;border-bottom:1px solid #edf1f5;vertical-align:top}tbody tr:hover{background:#fafcfd}.record-name{font-weight:600;color:var(--navy)}.record-sub{font-size:12px;color:var(--muted);margin-top:3px}.row-actions{display:flex;gap:6px;justify-content:flex-end}.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:600;background:#edf2f7;color:#506070}.pill.verified{background:#e3f4ed;color:#176f55}.pill.public-source{background:#e8f0fa;color:#285f96}.pill.needs-review,.pill.stale{background:#fff0df;color:#9a5b0e}.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+    .pill.status-draft{background:#eef1f5;color:#4a5568}.pill.status-published{background:#e3f4ed;color:#176f55}.pill.status-archived{background:#f3e8e8;color:#8a4b4b}
     .empty{padding:36px;text-align:center;color:var(--muted)}.audit-list{display:flex;flex-direction:column}.audit-item{display:grid;grid-template-columns:92px 1fr auto;gap:14px;padding:13px 0;border-bottom:1px solid #edf1f5}.audit-time{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}.audit-title{font-weight:600}.audit-detail{font-size:12px;color:var(--muted);margin-top:3px}.activity-tag{align-self:start;font-size:10px;text-transform:uppercase;background:#edf2f7;padding:4px 7px;border-radius:5px;color:#536274}
     .readiness{display:grid;gap:13px}.ready-row{display:grid;grid-template-columns:155px 1fr 42px;align-items:center;gap:10px}.bar{height:8px;background:#e8edf2;border-radius:99px;overflow:hidden}.bar span{display:block;height:100%;background:var(--teal);border-radius:99px}.ready-row strong{text-align:right;color:var(--navy)}
     dialog{border:0;padding:0;border-radius:14px;box-shadow:0 25px 80px rgba(11,36,64,.3);width:min(720px,calc(100vw - 32px));max-height:90vh}dialog::backdrop{background:rgba(9,24,42,.54)}.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line)}.modal-head h2{margin:0;color:var(--navy);font-size:19px}.close{border:0;background:transparent;font-size:20px;color:var(--muted)}.form-body{padding:20px 22px;overflow:auto;max-height:calc(90vh - 130px)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:600;color:#42536a}.field input,.field select,.field textarea{border:1px solid #cbd5e0;border-radius:8px;padding:9px 10px;background:#fff;color:var(--ink)}.field textarea{resize:vertical;min-height:80px}.help{font-size:11px;color:var(--muted)}.form-actions{display:flex;justify-content:flex-end;gap:9px;padding:15px 22px;border-top:1px solid var(--line);background:#fafbfc}
@@ -48,6 +49,7 @@
       <button class="nav-btn active" data-page="dashboard">Dashboard</button>
       <button class="nav-btn" data-page="organisations">Organisations <span class="nav-count" id="orgNavCount">0</span></button>
       <button class="nav-btn" data-page="projects">Projects <span class="nav-count" id="projectNavCount">0</span></button>
+      <button class="nav-btn" data-page="themes">Research themes <span class="nav-count" id="themeNavCount">0</span></button>
       <button class="nav-btn" data-page="relationships">Relationships <span class="nav-count" id="relNavCount">0</span></button>
       <button class="nav-btn" data-page="sources">Sources <span class="nav-count" id="sourceNavCount">0</span></button>
       <button class="nav-btn" data-page="history">Change history</button>
@@ -56,7 +58,7 @@
     <main>
       <section class="page active" id="page-dashboard">
         <div class="page-head"><div><h1>Administration overview</h1><p>Review directory coverage, data quality and recent changes before publishing updates.</p></div><div class="actions"><button class="btn" id="exportBtn">Export JSON</button><label class="btn" for="importInput">Import JSON</label><input class="file-input" type="file" id="importInput" accept="application/json" /></div></div>
-        <div class="notice">You are editing the shared directory dataset. Saved changes will be visible in the public directory.</div>
+        <div class="notice">Saving a record keeps it as a draft. Nothing reaches the public directory until you explicitly <strong>Publish</strong> it.</div>
         <div class="metric-grid" id="metricGrid"></div>
         <div class="two-col">
           <div class="panel"><div class="panel-head"><h2>Recent changes</h2><button class="btn small" data-go="history">View all</button></div><div class="panel-body"><div class="audit-list" id="recentAudit"></div></div></div>
@@ -65,18 +67,23 @@
       </section>
 
       <section class="page" id="page-organisations">
-        <div class="page-head"><div><h1>Organisations</h1><p>Create and maintain organisation records displayed in the public directory.</p></div><button class="btn primary" id="addOrganisationBtn">+ Add organisation</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="orgSearch" placeholder="Search name, type, state or sector" /><select class="select" id="orgConfidence"><option value="">All confidence levels</option><option value="verified">Verified</option><option value="public-source">Public source</option><option value="inferred">Inferred</option><option value="needs-review">Needs review</option><option value="stale">Stale</option></select></div><div class="table-wrap"><table><thead><tr><th>Organisation</th><th>Type</th><th>Location</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="orgTableBody"></tbody></table></div></div></div>
+        <div class="page-head"><div><h1>Organisations</h1><p>Create and maintain organisation records shown in the Ecosystem View once published. New and edited records stay as drafts until you publish them.</p></div><button class="btn primary" id="addOrganisationBtn">+ Add organisation</button></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="orgSearch" placeholder="Search name, type, state or sector" /><select class="select" id="orgConfidence"><option value="">All confidence levels</option><option value="verified">Verified</option><option value="public-source">Public source</option><option value="inferred">Inferred</option><option value="needs-review">Needs review</option><option value="stale">Stale</option></select><select class="select" id="orgStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>Organisation</th><th>Type</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="orgTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-projects">
-        <div class="page-head"><div><h1>Projects and initiatives</h1><p>Maintain research programs and initiatives linked to organisations and research themes.</p></div><button class="btn primary" id="addProjectBtn">+ Add project</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="projectSearch" placeholder="Search project, host, state or theme" /></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Host</th><th>Location</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="projectTableBody"></tbody></table></div></div></div>
+        <div class="page-head"><div><h1>Projects and initiatives</h1><p>Maintain research programs and initiatives linked to organisations and research themes in the Ecosystem View.</p></div><button class="btn primary" id="addProjectBtn">+ Add project</button></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="projectSearch" placeholder="Search project, host, state or theme" /><select class="select" id="projectStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Host</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="projectTableBody"></tbody></table></div></div></div>
+      </section>
+
+      <section class="page" id="page-themes">
+        <div class="page-head"><div><h1>Research themes</h1><p>Manage the concept nodes shown in the Ecosystem View network graph and Directory theme filters. Themes connect to organisations and projects through Relationships.</p></div><button class="btn primary" id="addThemeBtn">+ Add theme</button></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="themeSearch" placeholder="Search theme name" /><select class="select" id="themeStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>Theme</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="themeTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-relationships">
-        <div class="page-head"><div><h1>Relationships</h1><p>Maintain evidence-backed links between organisations, facilities, projects and themes.</p></div><button class="btn primary" id="addRelationshipBtn">+ Add relationship</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /></div><div class="table-wrap"><table><thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
+        <div class="page-head"><div><h1>Relationships</h1><p>Maintain evidence-backed links between organisations, facilities, projects and themes. A relationship can only be published once both ends are published.</p></div><button class="btn primary" id="addRelationshipBtn">+ Add relationship</button></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /><select class="select" id="relStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-sources">
@@ -97,7 +104,7 @@
       <div class="form-body"><div class="form-grid">
         <input type="hidden" id="orgOriginalId" />
         <div class="field full"><label for="orgName">Organisation name *</label><input id="orgName" required /></div>
-        <div class="field"><label for="orgId">Record ID *</label><input id="orgId" required pattern="[a-z0-9-]+" /><span class="help">Lowercase letters, numbers and hyphens.</span></div>
+        <div class="field"><label for="orgId">Record ID *</label><input id="orgId" required pattern="[a-z0-9\-]+" /><span class="help">Lowercase letters, numbers and hyphens.</span></div>
         <div class="field"><label for="orgType">Organisation type *</label><select id="orgType" required></select></div>
         <div class="field"><label for="orgState">Head office state</label><select id="orgState"></select></div>
         <div class="field"><label for="orgConfidenceField">Confidence *</label><select id="orgConfidenceField" required></select></div>
@@ -106,6 +113,7 @@
         <div class="field"><label for="orgThemes">Theme IDs</label><input id="orgThemes" placeholder="decarbonisation, battery-storage" /><span class="help">Comma separated.</span></div>
         <div class="field"><label for="orgWebsite">Website</label><input id="orgWebsite" type="url" placeholder="https://" /></div>
         <div class="field"><label for="orgUpdated">Last checked</label><input id="orgUpdated" type="date" /></div>
+        <div class="field full"><label for="orgOffices">Offices (map locations)</label><textarea id="orgOffices" placeholder="head | VIC | Melbourne | Corporate governance&#10;branch | WA | Perth | Pilbara liaison"></textarea><span class="help">One per line: role (head or branch) | state code | city | focus. The map has no coordinates; pins are placed by state. Organisations with no office show as &ldquo;location unavailable&rdquo;.</span></div>
         <div class="field full"><label for="orgSourceNotes">Source notes</label><textarea id="orgSourceNotes" placeholder="One source per line"></textarea></div>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="organisationDialog">Cancel</button><button class="btn teal" type="submit">Save organisation</button></div>
@@ -133,7 +141,7 @@
       <div class="form-body"><div class="form-grid">
         <input type="hidden" id="projectOriginalId" />
         <div class="field full"><label for="projectName">Project or initiative name *</label><input id="projectName" required /></div>
-        <div class="field"><label for="projectId">Record ID *</label><input id="projectId" required pattern="[a-z0-9-]+" /></div>
+        <div class="field"><label for="projectId">Record ID *</label><input id="projectId" required pattern="[a-z0-9\-]+" /></div>
         <div class="field"><label for="projectHost">Host organisation</label><select id="projectHost"></select></div>
         <div class="field"><label for="projectState">State</label><select id="projectState"></select></div>
         <div class="field"><label for="projectConfidence">Confidence *</label><select id="projectConfidence" required></select></div>
@@ -143,6 +151,27 @@
         <div class="field full"><label for="projectEvidence">Evidence or source note</label><textarea id="projectEvidence"></textarea></div>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="projectDialog">Cancel</button><button class="btn teal" type="submit">Save project</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="previewDialog">
+    <div class="modal-head"><h2 id="previewTitle">Preview</h2><button class="close" type="button" data-close="previewDialog">×</button></div>
+    <div class="form-body"><pre id="previewBody" style="white-space:pre-wrap;font:inherit;margin:0;"></pre></div>
+    <div class="form-actions"><button class="btn" type="button" data-close="previewDialog">Close</button></div>
+  </dialog>
+
+  <dialog id="themeDialog">
+    <form id="themeForm">
+      <div class="modal-head"><h2 id="themeDialogTitle">Add theme</h2><button class="close" type="button" data-close="themeDialog">×</button></div>
+      <div class="form-body"><div class="form-grid">
+        <input type="hidden" id="themeOriginalId" />
+        <div class="field full"><label for="themeName">Theme name *</label><input id="themeName" required /></div>
+        <div class="field"><label for="themeId">Record ID *</label><input id="themeId" required pattern="[a-z0-9\-]+" /><span class="help">Lowercase letters, numbers and hyphens.</span></div>
+        <div class="field"><label for="themeConfidence">Confidence *</label><select id="themeConfidence" required></select></div>
+        <div class="field full"><label for="themeSummary">Summary *</label><textarea id="themeSummary" required></textarea></div>
+        <div class="field"><label for="themeUpdated">Last checked</label><input id="themeUpdated" type="date" /></div>
+      </div></div>
+      <div class="form-actions"><button class="btn" type="button" data-close="themeDialog">Cancel</button><button class="btn teal" type="submit">Save theme</button></div>
     </form>
   </dialog>
 

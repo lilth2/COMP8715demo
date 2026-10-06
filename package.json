@@ -5,7 +5,7 @@
   "scripts": {
     "setup:admin": "node backend/setup-admin.js",
     "start": "node backend/server.js",
-    "test": "node --test backend/tests/auth.test.js backend/tests/demo.test.js"
+    "test": "node --test backend/tests/auth.test.js backend/tests/demo.test.js backend/tests/publish.test.js backend/tests/persistence.test.js"
   },
   "engines": { "node": ">=20" }
 }

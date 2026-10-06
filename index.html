@@ -601,14 +601,14 @@
     <section class="view" id="view-ai" data-view="ai" hidden>
       <div class="view-head">
         <h1 class="view-title">Plain-English AI Discovery</h1>
-        <p class="view-subtitle">Ask questions about the ecosystem in plain English. Responses are pre-scripted mock answers over the pilot dataset — no live AI model or external API is called.</p>
+        <p class="view-subtitle">Ask questions about the ecosystem in plain English. Answers are generated from the currently published records — no live AI model or external API is called.</p>
       </div>
       <div class="view-inner ai-shell">
         <div class="ai-input-row">
           <input id="aiInput" class="ai-input" placeholder="Ask an ecosystem question..." autocomplete="off" />
           <button class="icon-btn primary" id="aiAskBtn">Ask</button>
         </div>
-        <div class="data-notice" id="aiScriptedNote" style="margin:10px 0 0;"></div>
+        <div class="data-notice" id="aiNote" style="margin:10px 0 0;"></div>
         <div class="ai-suggest" id="aiSuggest"></div>
         <div class="ai-thread" id="aiThread"></div>
       </div>
@@ -678,7 +678,7 @@
     <section class="view" id="view-insights" data-view="insights" hidden>
       <div class="view-head">
         <h1 class="view-title">Ecosystem Intelligence &amp; Insights</h1>
-        <p class="view-subtitle">Illustrative, mock-computed signals over the pilot subset — not statistically validated findings.</p>
+        <p class="view-subtitle">Signals computed from the currently published records (simple counts and links) — not statistically validated findings.</p>
       </div>
       <div class="view-inner insight-grid" id="insightGrid"></div>
     </section>

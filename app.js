@@ -1098,7 +1098,7 @@
   }
   function renderAI() {
     var qs = window.RD_AI.suggestions(D);
-    var note = $("#aiScriptedNote");
+    var note = $("#aiNote");
     if (note) note.textContent = qs.length
       ? "Answers are generated from the currently published records. If the data cannot answer a question, this assistant says so."
       : "There are no published records yet, so there is nothing to ask about.";
@@ -1351,7 +1351,7 @@
       insightCard("Regions without a CRC or NCRIS facility", insightUnderConnectedHTML(ins.underConnected)),
       insightCard("Bridging organisations", insightBridgingHTML(ins.bridging)),
       insightCard("CRC \u00d7 NCRIS facility links", insightMatrixHTML(ins)),
-      insightCard("Gaps &amp; potential connections", insightGapsHTML(ins.gaps, ins.opportunities)),
+      insightCard("Gaps & potential connections", insightGapsHTML(ins.gaps, ins.opportunities)),
     ].join("");
     $$("#insightGrid .entity-chip").forEach(function (b) { b.addEventListener("click", function () { openEntity(b.dataset.id); }); });
   }

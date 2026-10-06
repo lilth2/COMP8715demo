@@ -9,7 +9,8 @@
   This file is the SEED only: the taxonomy (types, relationship kinds, states) and the
   initial illustrative records. At runtime the public pages render the PUBLISHED
   records supplied by the Admin store (backend API or browser demo store), which
-  replace these arrays; `questions` and `walkthrough` below are scripted demo content.
+  replace these arrays. Nothing else in this file carries business facts: AI Discovery
+  answers are generated from the published records at runtime (see ai-engine.js).
 */
 
 window.RD_DATA = (function () {
@@ -488,72 +489,6 @@ window.RD_DATA = (function () {
   });
 
   // ---------------------------------------------------------------------
-  // Plain-English AI Discovery — mock Q&A bank
-  // ---------------------------------------------------------------------
-  const questions = [
-    {
-      id: "q1",
-      query: "Which CRCs are active in decarbonisation?",
-      matchKeywords: ["crc", "decarbonisation", "active"],
-      answer: "Four CRCs in the pilot subset carry an active decarbonisation focus: Heavy Industry Low-carbon Transition CRC and CO2CRC work directly on industrial and carbon-management pathways, while RACE for 2030 CRC and Future Battery Industries CRC contribute through grid-integration and battery-storage research that supports the broader transition.",
-      relevantEntityIds: ["hilt-crc", "co2crc", "race2030-crc", "fbi-crc", "decarbonisation"],
-      evidence: ["Theme tag 'Decarbonisation' matched on 3 CRC profiles", "Adjacent theme overlap (battery-storage, grid-integration) on 1 CRC profile"],
-      suggestedVisualisation: "Open the Ecosystem Network centred on 'Decarbonisation' at 2-hop depth.",
-      vizAction: { view: "network", centerNodeId: "decarbonisation", hop: 2 },
-      confidence: "public-source",
-      followUps: ["Which NCRIS facilities support these CRCs?", "Show collaboration gaps for decarbonisation."],
-    },
-    {
-      id: "q2",
-      query: "Show NCRIS facilities that could support hydrogen storage research.",
-      matchKeywords: ["ncris", "facilit", "hydrogen"],
-      answer: "Within the pilot subset, Australian National Fabrication Facility is the NCRIS facility most directly tagged to hydrogen storage, via shared-theme and infrastructure links to CSIRO Energy and UNSW Hydrogen Energy Research Centre. No other NCRIS facility in this subset currently carries a hydrogen-storage tag — this is flagged as a coverage gap, not a confirmed absence of capability.",
-      relevantEntityIds: ["anff", "csiro-energy", "unsw-hydrogen", "hydrogen-storage"],
-      evidence: ["Theme tag 'Hydrogen storage' matched on 1 NCRIS facility, 1 government agency, 1 university"],
-      suggestedVisualisation: "Open the Directory filtered to 'Hydrogen storage'.",
-      vizAction: { view: "directory", themeCategoryId: "hydrogen" },
-      confidence: "public-source",
-      followUps: ["Which universities work on hydrogen storage?", "What collaboration gaps exist in regional decarbonisation?"],
-    },
-    {
-      id: "q3",
-      query: "Where are battery recycling capabilities clustered?",
-      matchKeywords: ["battery", "recycl", "cluster"],
-      answer: "Battery recycling activity in this pilot subset is concentrated in Western Australia, anchored by Future Battery Industries CRC's Battery Recycling Pilot Program and supported by the Pilbara Industry Partner Cluster and Pawsey Supercomputing Research Centre. No other state currently shows tagged recycling activity in this subset.",
-      relevantEntityIds: ["fbi-crc", "battery-recycling-pilot", "pilbara-cluster", "pawsey"],
-      evidence: ["Theme tag 'Battery recycling' matched on 2 records, both located in WA"],
-      suggestedVisualisation: "Open Geography and filter to Western Australia.",
-      vizAction: { view: "geo", stateCode: "WA" },
-      confidence: "verified",
-      followUps: ["Which industry partners are linked to this cluster?", "Add these actors to a shortlist for briefing."],
-    },
-    {
-      id: "q4",
-      query: "Which organisations connect universities and industry in clean energy?",
-      matchKeywords: ["connect", "universit", "industry", "bridg"],
-      answer: "Cicada Innovations is the clearest bridging organisation in this subset, linking CRC and university-originated research (Future Battery Industries CRC, CSIRO Energy) to industry-facing translation programs. Monash Energy Institute also shows a direct industry-facing collaboration link into Future Battery Industries CRC.",
-      relevantEntityIds: ["cicada", "monash-energy", "fbi-crc", "csiro-energy"],
-      evidence: ["2 collaborates_with edges from 'cicada' cross the research-performer / industry_gov group boundary"],
-      suggestedVisualisation: "Open the Ecosystem Network and select 'cicada' to see its bridging edges highlighted.",
-      vizAction: { view: "network", centerNodeId: "cicada", selectNodeId: "cicada" },
-      confidence: "public-source",
-      followUps: ["Show the strongest collaboration path from Cicada Innovations.", "What collaboration gaps exist in regional decarbonisation?"],
-    },
-    {
-      id: "q5",
-      query: "What collaboration gaps exist in regional decarbonisation?",
-      matchKeywords: ["gap", "region", "collaboration"],
-      answer: "Queensland, Tasmania and the Northern Territory currently show no confirmed CRC or NCRIS presence in this pilot subset, despite national decarbonisation relevance. This is an under-connected-region signal, not a claim that no activity exists there — it reflects the current pilot's data coverage.",
-      relevantEntityIds: [],
-      evidence: ["Region coverage table: QLD, TAS and NT each show 0 tagged CRC/NCRIS actors in this pilot subset"],
-      suggestedVisualisation: "Open Insights and review 'Under-connected regions'.",
-      vizAction: { view: "insights" },
-      confidence: "needs-review",
-      followUps: ["Which CRCs are active in decarbonisation?", "Show me suggested opportunities."],
-    },
-  ];
-
-  // ---------------------------------------------------------------------
   // Domains: a top-level grouping above individual research themes. Adding
   // a new field of R&D later (health, digital & AI, etc.) only means
   // appending one more entry here — it does not add a flat pile of new
@@ -582,37 +517,6 @@ window.RD_DATA = (function () {
     },
   ];
 
-  // A few categories use a shorter label/id than their underlying theme node
-  // (e.g. theme "Hydrogen Storage" shows as the "Hydrogen" explorer chip).
-  const CATEGORY_LABEL_OVERRIDES = {
-    "hydrogen-storage": { id: "hydrogen", label: "Hydrogen" },
-  };
-
-  // ---------------------------------------------------------------------
-  // Theme category lookup (used by AI Discovery's vizAction targeting) —
-  // derived from `domains`, plus a small number of sector-linked categories
-  // with no dedicated theme node yet.
-  // ---------------------------------------------------------------------
-  const explorerCategories = domains.reduce((acc, domain) => {
-    domain.themeIds.forEach((themeId) => {
-      const theme = themeNodes.filter((t) => t.id === themeId)[0];
-      if (!theme) return;
-      const ov = CATEGORY_LABEL_OVERRIDES[themeId];
-      acc.push({
-        id: ov ? ov.id : themeId,
-        label: ov ? ov.label : theme.name,
-        themeId: themeId,
-        domainId: domain.id,
-        inPilot: true,
-      });
-    });
-    return acc;
-  }, []).concat([
-    { id: "advanced-manufacturing", label: "Advanced manufacturing", themeId: "advanced-manufacturing", domainId: "critical-minerals-manufacturing", inPilot: true, note: "Tagged across CRC, NCRIS-facility and precinct profiles (no dedicated theme node yet)." },
-    { id: "digital-infrastructure", label: "Digital infrastructure", themeId: "digital-infrastructure", domainId: "digital-infrastructure-domain", inPilot: true, note: "National Computational Infrastructure and Pawsey Supercomputing Research Centre." },
-    { id: "circular-economy", label: "Circular Economy & Recycling", themeId: "circular-economy", domainId: "circular-economy", inPilot: false, note: "Planned expansion domain — pilot dataset not yet populated (illustrative)." },
-  ]);
-
   // ---------------------------------------------------------------------
   // Data Trust / sources
   // ---------------------------------------------------------------------
@@ -627,26 +531,9 @@ window.RD_DATA = (function () {
     { name: "Manual stakeholder validation", type: "manual_validation", notes: "Illustrative stand-in for direct validation conversations with ecosystem stakeholders." },
   ];
 
-  // ---------------------------------------------------------------------
-  // Demo walkthrough script
-  // ---------------------------------------------------------------------
-  const walkthrough = {
-    scenario: "A policy analyst at CRA wants to understand the decarbonisation R&D ecosystem and identify collaboration pathways between CRCs, NCRIS facilities, universities, and industry partners.",
-    steps: [
-      { caption: "Step 1 — Search “decarbonisation” in the Intelligent Directory.", target: "#searchInput" },
-      { caption: "Step 2 — Open a Directory result to see its full entity profile.", target: "#drawer" },
-      { caption: "Step 3 — Switch to the Ecosystem Network, centred on “Decarbonisation”.", target: "#canvasWrap" },
-      { caption: "Step 4 — Explain the connection between Future Battery Industries CRC and the Australian National Fabrication Facility.", target: "#explainBtn" },
-      { caption: "Step 5 — Open the Geography map to see the ecosystem by state and territory.", target: "#auMap" },
-      { caption: "Step 6 — Ask the AI Discovery assistant: “Where are battery recycling capabilities clustered?”", target: "#aiInput" },
-      { caption: "Step 7 — Add three actors to the shortlist.", target: "#shortlistBtn" },
-      { caption: "Step 8 — Generate a briefing preview from the shortlist.", target: "#shortlistDrawer" },
-    ],
-  };
-
   return {
     TYPE_META, RELATIONSHIP_META, CONFIDENCE_META, STATES, domains,
     actors, themeNodes, projectNodes, allNodes, relationships,
-    regions, questions, explorerCategories, sources, walkthrough,
+    regions, sources,
   };
 })();

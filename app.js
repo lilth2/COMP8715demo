@@ -27,7 +27,6 @@
     pathHighlight: null,
     shortlist: new Set(),
     transform: { x: 0, y: 0, k: 1 },
-    walkthrough: { active: false, index: 0 },
     expandedTagCards: new Set(),
     openFilterDomains: new Set(D.domains.map(function (d) { return d.id; })),
     sectorFilterExpanded: false,
@@ -997,7 +996,7 @@
     var terms = [];
     nodes.forEach(function (n) { terms.push(n.name.toLowerCase()); if (n.state) terms.push(stateName(n.state).toLowerCase()); });
     shortlistedThemeIds.forEach(function (t) { terms.push(themeLabel(t).toLowerCase()); });
-    var gaps = computeInsights().gaps.filter(function (g) {
+    var gaps = window.RD_AI.coverageGaps(D).filter(function (g) {
       var gl = g.toLowerCase();
       return terms.some(function (t) { return t && gl.indexOf(t) !== -1; });
     });
@@ -1005,19 +1004,13 @@
       ? '<div><h5>Relevant data gaps</h5><ul class="list-compact">' + gaps.map(function (g) { return "<li>" + esc(g) + "</li>"; }).join("") + "</ul></div>"
       : "";
 
-    var followUps = availableQuestions().filter(function (q) {
-      return (q.relevantEntityIds || []).some(function (id) {
-        var n = nodeById(id);
-        return n && themeIdsOfNode(n).some(function (t) { return shortlistedThemeIds.has(t); });
-      });
-    }).map(function (q) { return q.query; });
-    if (!followUps.length) followUps = availableQuestions().slice(0, 2).map(function (q) { return q.query; });
+    var followUps = window.RD_AI.suggestions(D);
     followUps = followUps.slice(0, 3);
     var followUpsHTML = '<div><h5>Suggested AI Discovery follow-ups</h5><div class="chips">' +
       followUps.map(function (q) { return '<button class="btn-mini briefing-followup" data-q="' + esc(q) + '">' + esc(q) + "</button>"; }).join("") + "</div></div>";
 
     return '<div class="briefing"><div><h5>Briefing preview</h5><p>' + nodes.length + " entities shortlisted across " + sectors.size +
-      " sector(s). This is an illustrative preview only, generated locally from mock data — no external report is produced.</p></div>" +
+      " sector(s). This is an illustrative preview only, generated locally from the published records — no external report is produced.</p></div>" +
       actorsHTML + pathwayHTML + gapsHTML + followUpsHTML + "</div>";
   }
   function renderShortlistDrawer() {
@@ -1048,24 +1041,7 @@
   }
 
   // -------------------------------------------------------------- AI discovery
-  // The question bank in data.js is hand-written, scripted demo content (it is not
-  // generated from Admin data), so an entry is only offered while every record it
-  // refers to is currently published, and the view says so.
-  function availableQuestions() {
-    return (D.questions || []).filter(function (q) {
-      return (q.relevantEntityIds || []).every(function (id) { return Boolean(nodeById(id)); });
-    });
-  }
-  function matchQuestion(query) {
-    var q = query.toLowerCase();
-    var best = null, bestScore = 0;
-    availableQuestions().forEach(function (item) {
-      var score = 0;
-      (item.matchKeywords || []).forEach(function (k) { if (q.indexOf(k.toLowerCase()) !== -1) score++; });
-      if (score > bestScore) { bestScore = score; best = item; }
-    });
-    return bestScore > 0 ? best : null;
-  }
+  // Answers are computed from the published records by ai-engine.js; there is no scripted bank.
   function linkChip(id) {
     var n = nodeById(id);
     if (!n) return "";
@@ -1086,16 +1062,8 @@
       switchView("geo");
       if (action.stateCode) { state.selectedState = action.stateCode; renderGeo(); }
     } else if (action.view === "directory") {
+      if (action.themeId && nodeById(action.themeId)) { state.dirFilters.themes = new Set([action.themeId]); }
       switchView("directory");
-      if (action.themeCategoryId) {
-        var cat = D.explorerCategories.filter(function (c) { return c.id === action.themeCategoryId; })[0];
-        if (cat && cat.themeId) {
-          state.netFilters.theme = cat.themeId;
-          state.dirFilters.themes = new Set([cat.themeId]);
-          renderDirFilterPanel();
-          renderDirectory();
-        }
-      }
     } else {
       switchView(action.view);
     }
@@ -1103,7 +1071,7 @@
 
   function askAI(query) {
     if (!query || !query.trim()) return;
-    var match = matchQuestion(query);
+    var result = window.RD_AI.answer(D, query);
     var thread = $("#aiThread");
     var qDiv = document.createElement("div");
     qDiv.className = "ai-q";
@@ -1111,32 +1079,30 @@
     thread.appendChild(qDiv);
     var card = document.createElement("div");
     card.className = "ai-card";
-    if (match) {
-      card.innerHTML =
-        '<div class="ai-answer">' + esc(match.answer) + "</div>" +
-        '<div class="ai-row"><h5>Relevant entities</h5><div class="chips">' + (match.relevantEntityIds || []).map(linkChip).join("") + "</div></div>" +
-        '<div class="ai-row"><h5>Evidence</h5><ul class="list-compact">' + (match.evidence || []).map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul></div>" +
-        '<div class="ai-row"><h5>Suggested visualisation</h5>' +
-        (match.vizAction
-          ? '<button class="btn-mini viz-action">' + esc(match.suggestedVisualisation || "Open visualisation") + "</button>"
-          : '<p style="font-size:12.5px;">' + esc(match.suggestedVisualisation || "") + "</p>") + "</div>" +
-        '<div class="ai-row">' + confidenceBadgeHTML(match.confidence) + "</div>" +
-        '<div class="ai-row chips">' + (match.followUps || []).map(function (f) { return '<button class="btn-mini follow-up" data-q="' + esc(f) + '">' + esc(f) + "</button>"; }).join("") + "</div>";
+    var answerHTML = '<div class="ai-answer">' + esc(result.answer).replace(/\n/g, "<br>") + "</div>";
+    if (result.matched) {
+      card.innerHTML = answerHTML +
+        (result.entities.length ? '<div class="ai-row"><h5>Relevant records</h5><div class="chips">' + result.entities.map(linkChip).join("") + "</div></div>" : "") +
+        (result.evidence.length ? '<div class="ai-row"><h5>Evidence from published relationships</h5><ul class="list-compact">' + result.evidence.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul></div>" : "") +
+        (result.viz ? '<div class="ai-row"><button class="btn-mini viz-action">' + esc(result.vizLabel || "Open visualisation") + "</button></div>" : "") +
+        (result.confidence ? '<div class="ai-row">Lowest data confidence used: ' + confidenceBadgeHTML(result.confidence) + "</div>" : "");
     } else {
-      card.innerHTML = '<div class="ai-answer">No pre-scripted answer matches this question in the pilot dataset. Try one of the suggested questions above, or search the Directory directly.</div>';
+      card.innerHTML = answerHTML;
     }
     thread.appendChild(card);
-    $$(".follow-up", card).forEach(function (b) { b.addEventListener("click", function () { $("#aiInput").value = b.dataset.q; askAI(b.dataset.q); }); });
     var vizBtn = card.querySelector(".viz-action");
-    if (vizBtn && match) vizBtn.addEventListener("click", function () { applyVizAction(match.vizAction); });
+    if (vizBtn) vizBtn.addEventListener("click", function () { applyVizAction(result.viz); });
+    $$(".entity-chip", card).forEach(function (b) { b.addEventListener("click", function () { openEntity(b.dataset.id); }); });
     $("#aiInput").value = "";
     thread.scrollTop = thread.scrollHeight;
   }
   function renderAI() {
-    var qs = availableQuestions();
+    var qs = window.RD_AI.suggestions(D);
     var note = $("#aiScriptedNote");
-    if (note) note.textContent = qs.length ? "Scripted demo answers: these canned responses are not generated from the Admin data and may not reflect edits made there. Entries disappear when a record they cite is not published." : "No scripted answers are available for the currently published records.";
-    $("#aiSuggest").innerHTML = qs.map(function (q) { return '<button data-q="' + esc(q.query) + '">' + esc(q.query) + "</button>"; }).join("");
+    if (note) note.textContent = qs.length
+      ? "Answers are generated from the currently published records. If the data cannot answer a question, this assistant says so."
+      : "There are no published records yet, so there is nothing to ask about.";
+    $("#aiSuggest").innerHTML = qs.map(function (q) { return '<button data-q="' + esc(q) + '">' + esc(q) + "</button>"; }).join("");
     $$("#aiSuggest button").forEach(function (b) { b.addEventListener("click", function () { $("#aiInput").value = b.dataset.q; askAI(b.dataset.q); }); });
   }
 
@@ -1403,89 +1369,6 @@
     $("#sourceGrid").innerHTML = D.sources.map(function (s) { return '<div class="source-card"><h4>' + esc(s.name) + "</h4><p>" + esc(s.notes) + "</p></div>"; }).join("");
   }
 
-  // -------------------------------------------------------------- walkthrough
-  var WT_ACTIONS = [
-    // Step 1 — Search "decarbonisation" in the Intelligent Directory.
-    function () {
-      switchView("directory");
-      state.search = "decarbonisation";
-      $("#searchInput").value = state.search;
-      $("#searchMenu").hidden = true;
-      renderDirectory();
-    },
-    // Step 2 — Open a Directory result to see its full entity profile.
-    function () {
-      var first = D.actors[0];
-      if (first) openEntity(first.id);
-    },
-    // Step 3 — Switch to the Ecosystem Network, centred on "Decarbonisation".
-    function () {
-      switchView("network");
-      if (nodeById("decarbonisation")) state.centerNodeId = "decarbonisation";
-      state.hop = 2;
-      $$("#hopSeg button").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.hop === "2" ? "true" : "false"); });
-      renderNetFilterPanel();
-      renderGraph();
-      renderNetActions();
-    },
-    // Step 4 — Explain the connection between Future Battery Industries CRC and ANFF.
-    function () {
-      runExplainConnection("fbi-crc", "anff");
-    },
-    // Step 5 — Open the Geography map.
-    function () {
-      switchView("geo");
-      state.selectedState = "WA";
-      renderGeo();
-    },
-    // Step 6 — Ask the AI Discovery assistant about battery recycling clusters.
-    function () {
-      switchView("ai");
-      var q = "Where are battery recycling capabilities clustered?";
-      $("#aiInput").value = q;
-      askAI(q);
-    },
-    // Step 7 — Add three actors to the shortlist.
-    function () {
-      ["fbi-crc", "anff", "pilbara-cluster"].forEach(function (id) { state.shortlist.add(id); });
-      updateShortlistBadge();
-    },
-    // Step 8 — Generate a briefing preview from the shortlist.
-    function () {
-      renderShortlistDrawer();
-      openShortlistDrawer();
-      var genBtn = document.getElementById("generateBriefingBtn");
-      if (genBtn) genBtn.click();
-    },
-  ];
-  var wtHighlightEl = null;
-  function clearWtHighlight() {
-    if (wtHighlightEl) { wtHighlightEl.classList.remove("wt-highlight"); wtHighlightEl = null; }
-  }
-  function runWalkthroughStep() {
-    var idx = state.walkthrough.index;
-    var step = D.walkthrough.steps[idx];
-    $("#wtStep").textContent = "Step " + (idx + 1) + " of " + D.walkthrough.steps.length;
-    $("#wtCaption").textContent = step.caption;
-    $("#wtBack").disabled = idx === 0;
-    $("#wtNext").textContent = idx === D.walkthrough.steps.length - 1 ? "Finish" : "Next";
-    WT_ACTIONS[idx]();
-    clearWtHighlight();
-    var target = step.target && document.querySelector(step.target);
-    if (target) { target.classList.add("wt-highlight"); wtHighlightEl = target; }
-  }
-  function startWalkthrough() {
-    state.walkthrough.active = true;
-    state.walkthrough.index = 0;
-    $("#walkthroughBar").hidden = false;
-    runWalkthroughStep();
-  }
-  function endWalkthrough() {
-    state.walkthrough.active = false;
-    $("#walkthroughBar").hidden = true;
-    clearWtHighlight();
-  }
-
   // ------------------------------------------------------------------- boot
   function openShortlistDrawer() {
     var d = $("#shortlistDrawer");
@@ -1612,19 +1495,6 @@
       var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
       var isDark = current === "dark" || (current !== "light" && systemDark);
       root.setAttribute("data-theme", isDark ? "light" : "dark");
-    });
-
-    $("#walkthroughBtn").addEventListener("click", startWalkthrough);
-    $("#wtExit").addEventListener("click", endWalkthrough);
-    $("#wtNext").addEventListener("click", function () {
-      if (state.walkthrough.index >= D.walkthrough.steps.length - 1) { endWalkthrough(); return; }
-      state.walkthrough.index++;
-      runWalkthroughStep();
-    });
-    $("#wtBack").addEventListener("click", function () {
-      if (state.walkthrough.index <= 0) return;
-      state.walkthrough.index--;
-      runWalkthroughStep();
     });
   }
 

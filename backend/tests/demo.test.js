@@ -19,7 +19,7 @@ function browser(apiBaseUrl = "", hostname = "lilth2.github.io", options = {}) {
   context.window = { RD_SITE_CONFIG: { apiBaseUrl, demoAccount }, location: { hostname, pathname: options.pathname || "/COMP8715demo/admin/index.html" }, dispatchEvent: () => {}, addEventListener: () => {} };
   vm.createContext(context);
   const run = filename => vm.runInContext(fs.readFileSync(path.join(ROOT, filename), "utf8"), context);
-  run("data.js"); run("admin/auth.js"); run("admin/demo-store.js"); run("admin/store.js");
+  run("data.js"); run("admin/dataset-core.js"); run("admin/auth.js"); run("admin/demo-store.js"); run("admin/store.js");
   return { context, auth: context.window.RD_ADMIN_AUTH, store: context.window.RD_ADMIN_STORE, password, memory };
 }
 
@@ -138,10 +138,49 @@ test("demo mode: research themes are manageable through the same store, and rela
   assert.equal(f.store.findTheme("demo-theme").status, "draft");
 
   await f.store.upsertRelationship({ id: "demo-rel-1", sourceId: orgA.id, targetId: orgB.id, type: "collaborates_with", confidence: "needs-review", intensity: "medium", evidence: "" });
-  await assert.rejects(f.store.publish("relationships", "demo-rel-1"), /not published yet/);
+  await assert.rejects(f.store.publish("relationships", "demo-rel-1"), /is not published|are not published/);
   await f.store.publish("actors", orgA.id);
-  await assert.rejects(f.store.publish("relationships", "demo-rel-1"), /not published yet/);
+  await assert.rejects(f.store.publish("relationships", "demo-rel-1"), /is not published|are not published/);
   await f.store.publish("actors", orgB.id);
   await f.store.publish("relationships", "demo-rel-1");
   assert.equal(f.store.snapshot().relationships.find(item => item.id === "demo-rel-1").status, "published");
+});
+
+test("demo mode: link authority, layout and delete cascade come from the shared core", async () => {
+  const f = browser();
+  await f.store.ready;
+  await f.auth.login("admin", f.password);
+  await f.store.upsertActor({ id: "demo-host", name: "Demo Host", type: "university", summary: "H", state: "NSW", themes: [], dataConfidence: "needs-review" });
+  await f.store.upsertProject({ id: "demo-proj", name: "Demo Project", type: "project_initiative", summary: "P", themes: [], dataConfidence: "needs-review" });
+  await f.store.upsertRelationship({ id: "demo-hosted", sourceId: "demo-proj", targetId: "demo-host", type: "hosted_by", intensity: "strong", confidence: "needs-review", evidence: "e" });
+  assert.equal(f.store.findProject("demo-proj").hostId, "demo-host", "host is derived from the relationship");
+  await f.store.setLayout({ "demo-host": { x: 10, y: 20 } });
+  assert.equal(JSON.stringify(f.store.layout()["demo-host"]), JSON.stringify({ x: 10, y: 20 }));
+  const plan = f.store.describePublish("relationships", "demo-hosted");
+  assert.equal(plan.blockers.map(b => b.name).sort().join(","), "Demo Host,Demo Project");
+  await f.store.deleteActor("demo-host");
+  assert.equal(f.store.findProject("demo-proj").hostId, "");
+  assert.equal(f.store.findRelationship("demo-hosted"), null);
+  const stored = JSON.parse(f.memory.get("rd-directory-demo-data-v1"));
+  stored.audit = [];
+  assert.equal(JSON.stringify(stored).includes("demo-host"), false, "no trace of the deleted record in browser storage");
+});
+
+test("demo mode: legacy browser data with an archived record is backed up and kept as a non-public draft", async () => {
+  const memory = new Map();
+  const seeded = browser("", "lilth2.github.io", { memory });
+  await seeded.store.ready;
+  const legacy = JSON.parse(JSON.stringify(seeded.store.snapshot()));
+  legacy.version = 2;
+  delete legacy.layout;
+  legacy.actors.push({ id: "was-archived", name: "Was Archived", type: "university", summary: "x", state: "NSW", themes: [], dataConfidence: "verified", status: "archived", publishedSnapshot: { id: "was-archived", name: "Was Archived" } });
+  const original = JSON.stringify(legacy);
+  memory.set("rd-directory-demo-data-v1", original);
+  const publicPage = browser("", "lilth2.github.io", { memory, pathname: "/COMP8715demo/index.html" });
+  await publicPage.store.ready;
+  assert.equal(memory.get("rd-directory-demo-data-v1.backup-v2"), original, "original bytes backed up first");
+  assert.equal(publicPage.store.snapshot().actors.some(a => a.id === "was-archived"), false, "not auto-published");
+  const admin = browser("", "lilth2.github.io", { memory });
+  await admin.store.ready;
+  assert.equal(admin.store.findActor("was-archived").status, "draft");
 });

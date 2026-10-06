@@ -5,10 +5,12 @@ This directory contains the administrator UI and its browser adapters.
 | File | Purpose |
 | --- | --- |
 | `login.html`, `login.js` | Initial administrator sign-in flow |
-| `index.html`, `console.js` | Dashboard, records, relationships, sources and history |
+| `index.html`, `console.js` | Dashboard, tables, forms, publish / withdraw / delete dialogs, history |
+| `network-editor.js` | Graphical Network editor (same records and operations as the tables; layout positions only are editor-specific) |
+| `dataset-core.js` | Shared rules for drafts, publishing, link authority, delete cascades, layout, migration and the public view. Runs in Node and in the browser, so backend and demo mode behave identically |
 | `auth.js` | Server authentication or explicitly enabled Sprint demo login |
-| `store.js` | Data adapter consumed by the UI and public directory |
-| `demo-store.js` | Synthetic records in browser-local storage for the Pages demo |
+| `store.js` | Data adapter consumed by the UI and public directory (calls the API, or the demo store) |
+| `demo-store.js` | Browser-local storage (this browser only) wrapped around `dataset-core.js` for the Pages demo |
 
 Pages URL: `https://lilth2.github.io/COMP8715demo/admin/login.html`.
 

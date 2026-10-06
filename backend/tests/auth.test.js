@@ -36,7 +36,7 @@ test("anonymous access is blocked and private files are never served", async t =
   assert.equal((await fetch(f.base + "/admin/console.js")).status, 401);
   assert.equal((await fetch(f.base + "/api/admin/dataset")).status, 401);
   assert.equal((await f.post("/api/admin/action", { operation: "reset" })).status, 401);
-  for (const operation of ["upsertActor", "upsertRelationship", "upsertTheme", "publish", "withdraw", "archive", "restore", "deleteActor"]) {
+  for (const operation of ["upsertActor", "upsertRelationship", "upsertTheme", "publish", "withdraw", "setLayout", "deleteTheme", "deleteActor"]) {
     assert.equal((await f.post("/api/admin/action", { operation, value: { collection: "actors" }, id: "hilt-crc" })).status, 401, operation + " must require login");
   }
   const publicBody = JSON.stringify(await (await fetch(f.base + "/api/dataset")).json());

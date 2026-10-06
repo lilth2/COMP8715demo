@@ -23,12 +23,22 @@
     .sidebar{background:#fff;border-right:1px solid var(--line);padding:24px 16px}.side-label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:0 10px 8px}.nav-btn{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:#435267;padding:10px;border-radius:8px;text-align:left;margin:2px 0}.nav-btn:hover{background:#f2f6fa}.nav-btn.active{background:#e9f1f8;color:var(--navy);font-weight:600}.nav-count{margin-left:auto;background:#e9eef4;padding:2px 7px;border-radius:999px;font-size:11px}
     .side-note{margin:28px 7px 0;padding:13px;border:1px solid #d7e8e5;background:#f1faf8;border-radius:10px;font-size:11px;line-height:1.5;color:#46635f}.side-note strong{display:block;color:#185d57;margin-bottom:4px}
     main{padding:30px 34px 50px;max-width:1500px;width:100%;margin:0 auto}.page{display:none}.page.active{display:block}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:22px}.page-head h1{margin:0 0 6px;font-size:26px;color:var(--navy)}.page-head p{margin:0;color:var(--muted);max-width:720px;line-height:1.5}
-    .btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 13px;border-radius:8px;font-weight:600}.btn:hover{border-color:#9aabba}.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}.btn.teal{background:var(--teal);border-color:var(--teal);color:#fff}.btn.danger{color:var(--red);border-color:#e7b7b7}.btn.small{padding:6px 9px;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 13px;border-radius:8px;font-weight:600}.btn:hover{border-color:#9aabba}.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}.btn.teal{background:var(--teal);border-color:var(--teal);color:#fff}.btn.danger{color:var(--red);border-color:#e7b7b7}.btn.dangerfill{background:var(--red);border-color:var(--red);color:#fff}.btn.small{padding:6px 9px;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}
     .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px}.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow)}.metric .value{font-size:28px;font-weight:700;color:var(--navy)}.metric .label{color:var(--muted);margin-top:4px}.metric .meta{font-size:11px;color:var(--teal);margin-top:10px}
     .panel{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}.panel-head h2{font-size:16px;margin:0;color:var(--navy)}.panel-body{padding:18px}.two-col{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
     .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}.search{min-width:260px;flex:1;border:1px solid #cbd5e0;background:#fff;border-radius:8px;padding:9px 11px}.select{border:1px solid #cbd5e0;background:#fff;border-radius:8px;padding:9px 11px}
     table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:#f7f9fb;padding:11px 12px;border-bottom:1px solid var(--line)}td{padding:12px;border-bottom:1px solid #edf1f5;vertical-align:top}tbody tr:hover{background:#fafcfd}.record-name{font-weight:600;color:var(--navy)}.record-sub{font-size:12px;color:var(--muted);margin-top:3px}.row-actions{display:flex;gap:6px;justify-content:flex-end}.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:600;background:#edf2f7;color:#506070}.pill.verified{background:#e3f4ed;color:#176f55}.pill.public-source{background:#e8f0fa;color:#285f96}.pill.needs-review,.pill.stale{background:#fff0df;color:#9a5b0e}.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-    .pill.status-draft{background:#eef1f5;color:#4a5568}.pill.status-published{background:#e3f4ed;color:#176f55}.pill.status-archived{background:#f3e8e8;color:#8a4b4b}
+    .pill.status-draft{background:#eef1f5;color:#4a5568}.pill.status-published{background:#e3f4ed;color:#176f55}
+    .ne-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.ne-toolbar .search{min-width:180px;flex:0 1 220px}.ne-sep{flex:1}
+    .ne-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+    .ne-canvas{position:relative;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);height:640px;overflow:hidden}.ne-canvas svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}.ne-canvas svg.panning{cursor:grabbing}
+    .ne-hint{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:8px;padding:5px 9px;max-width:70%}
+    .ne-panel{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px;min-height:200px}.ne-panel h3{margin:0 0 4px;color:var(--navy);font-size:16px}.ne-panel .sub{font-size:12px;color:var(--muted);margin-bottom:10px}.ne-panel .btn-row{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.ne-panel dl{margin:8px 0;display:grid;gap:6px}.ne-panel dt{font-size:10.5px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}.ne-panel dd{margin:0}.ne-panel ul{margin:6px 0;padding-left:16px;font-size:12.5px}.ne-panel li{margin:3px 0}.ne-link{border:0;background:none;color:var(--teal);padding:0;text-align:left;text-decoration:underline;cursor:pointer;font:inherit}
+    .ne-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--muted)}.ne-legend .lg{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;border:2px solid #4a5568}.lg-pub{background:#4a5568}.lg-draft{border-style:dashed;background:#fff}.lg-pending{background:#4a5568;box-shadow:0 0 0 2px #fff,0 0 0 4px #d69a24}
+    #neLinkMode[aria-pressed="true"]{background:var(--teal);color:#fff;border-color:var(--teal)}
+    .ne-node{cursor:grab}.ne-node.dim{opacity:.18}.ne-node text{font:11px Rubik,Arial,sans-serif;fill:#243447;pointer-events:none}.ne-node.selected .ne-shape{stroke:#102e52;stroke-width:3.5}.ne-node .ne-halo{fill:none;stroke:#d69a24;stroke-width:3}.ne-edge{stroke:#7b8da1;stroke-width:1.6;fill:none}.ne-edge.draft{stroke-dasharray:6 4}.ne-edge.sel{stroke:#102e52;stroke-width:3}.ne-edge-hit{stroke:transparent;stroke-width:12;fill:none;cursor:pointer}.ne-edge.dim,.ne-edge-hit.dim{opacity:.12}.ne-edge-label{font:10px Rubik,Arial,sans-serif;fill:#52667a;pointer-events:none}
+    .confirm-body ul{margin:6px 0;padding-left:18px}.confirm-body li{margin:3px 0}.confirm-body .warn{background:#fff8ea;border-left:4px solid var(--gold);padding:8px 10px;border-radius:6px;margin:10px 0;color:#765415}.confirm-body .danger-note{background:#fdf0f0;border-left:4px solid var(--red);padding:8px 10px;border-radius:6px;margin:10px 0;color:#7a2d2d}
+    @media(max-width:980px){.ne-layout{grid-template-columns:1fr}.ne-canvas{height:480px}}
     .empty{padding:36px;text-align:center;color:var(--muted)}.audit-list{display:flex;flex-direction:column}.audit-item{display:grid;grid-template-columns:92px 1fr auto;gap:14px;padding:13px 0;border-bottom:1px solid #edf1f5}.audit-time{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}.audit-title{font-weight:600}.audit-detail{font-size:12px;color:var(--muted);margin-top:3px}.activity-tag{align-self:start;font-size:10px;text-transform:uppercase;background:#edf2f7;padding:4px 7px;border-radius:5px;color:#536274}
     .readiness{display:grid;gap:13px}.ready-row{display:grid;grid-template-columns:155px 1fr 42px;align-items:center;gap:10px}.bar{height:8px;background:#e8edf2;border-radius:99px;overflow:hidden}.bar span{display:block;height:100%;background:var(--teal);border-radius:99px}.ready-row strong{text-align:right;color:var(--navy)}
     dialog{border:0;padding:0;border-radius:14px;box-shadow:0 25px 80px rgba(11,36,64,.3);width:min(720px,calc(100vw - 32px));max-height:90vh}dialog::backdrop{background:rgba(9,24,42,.54)}.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line)}.modal-head h2{margin:0;color:var(--navy);font-size:19px}.close{border:0;background:transparent;font-size:20px;color:var(--muted)}.form-body{padding:20px 22px;overflow:auto;max-height:calc(90vh - 130px)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:600;color:#42536a}.field input,.field select,.field textarea{border:1px solid #cbd5e0;border-radius:8px;padding:9px 10px;background:#fff;color:var(--ink)}.field textarea{resize:vertical;min-height:80px}.help{font-size:11px;color:var(--muted)}.form-actions{display:flex;justify-content:flex-end;gap:9px;padding:15px 22px;border-top:1px solid var(--line);background:#fafbfc}
@@ -47,6 +57,7 @@
     <aside class="sidebar">
       <div class="side-label">Workspace</div>
       <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+      <button class="nav-btn" data-page="network">Network editor</button>
       <button class="nav-btn" data-page="organisations">Organisations <span class="nav-count" id="orgNavCount">0</span></button>
       <button class="nav-btn" data-page="projects">Projects <span class="nav-count" id="projectNavCount">0</span></button>
       <button class="nav-btn" data-page="themes">Research themes <span class="nav-count" id="themeNavCount">0</span></button>
@@ -66,24 +77,46 @@
         </div>
       </section>
 
+      <section class="page" id="page-network">
+        <div class="page-head"><div><h1>Network editor</h1><p>Edit the Ecosystem Network directly. Nodes and links here are the same records as in the tables: every change uses the same save, publish and delete rules, and drafts stay hidden from the public site until published.</p></div></div>
+        <div class="ne-toolbar">
+          <input class="search" id="neSearch" placeholder="Search nodes by name" />
+          <select class="select" id="neStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="pending">Unpublished changes</option></select>
+          <select class="select" id="neGroup"><option value="">All node types</option><option value="actors">Organisations</option><option value="projects">Projects</option><option value="themes">Themes</option></select>
+          <select class="select" id="neRelType"><option value="">All relationship types</option></select>
+          <span class="ne-sep"></span>
+          <button class="btn small" id="neAddOrg" type="button">+ Organisation</button>
+          <button class="btn small" id="neAddProject" type="button">+ Project</button>
+          <button class="btn small" id="neAddTheme" type="button">+ Theme</button>
+          <button class="btn small" id="neLinkMode" type="button" aria-pressed="false">Link nodes</button>
+          <button class="btn small" id="neFit" type="button">Fit view</button>
+          <button class="btn small" id="neAutoArrange" type="button">Auto-arrange</button>
+        </div>
+        <div class="ne-layout">
+          <div class="ne-canvas" id="neCanvas"><svg id="neSvg" role="application" aria-label="Network editor canvas"></svg><div class="ne-hint" id="neHint"></div></div>
+          <aside class="ne-panel" id="nePanel"></aside>
+        </div>
+        <div class="ne-legend"><span><i class="lg lg-pub"></i>Published</span><span><i class="lg lg-draft"></i>Draft (dashed)</span><span><i class="lg lg-pending"></i>Published with unpublished changes (amber ring)</span><span>Layout positions are editor-only canvas coordinates; they are not map locations.</span></div>
+      </section>
+
       <section class="page" id="page-organisations">
         <div class="page-head"><div><h1>Organisations</h1><p>Create and maintain organisation records shown in the Ecosystem View once published. New and edited records stay as drafts until you publish them.</p></div><button class="btn primary" id="addOrganisationBtn">+ Add organisation</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="orgSearch" placeholder="Search name, type, state or sector" /><select class="select" id="orgConfidence"><option value="">All confidence levels</option><option value="verified">Verified</option><option value="public-source">Public source</option><option value="inferred">Inferred</option><option value="needs-review">Needs review</option><option value="stale">Stale</option></select><select class="select" id="orgStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>Organisation</th><th>Type</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="orgTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="orgSearch" placeholder="Search name, type, state or sector" /><select class="select" id="orgConfidence"><option value="">All confidence levels</option><option value="verified">Verified</option><option value="public-source">Public source</option><option value="inferred">Inferred</option><option value="needs-review">Needs review</option><option value="stale">Stale</option></select><select class="select" id="orgStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>Organisation</th><th>Type</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="orgTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-projects">
         <div class="page-head"><div><h1>Projects and initiatives</h1><p>Maintain research programs and initiatives linked to organisations and research themes in the Ecosystem View.</p></div><button class="btn primary" id="addProjectBtn">+ Add project</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="projectSearch" placeholder="Search project, host, state or theme" /><select class="select" id="projectStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Host</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="projectTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="projectSearch" placeholder="Search project, host, state or theme" /><select class="select" id="projectStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Host</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="projectTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-themes">
         <div class="page-head"><div><h1>Research themes</h1><p>Manage the concept nodes shown in the Ecosystem View network graph and Directory theme filters. Themes connect to organisations and projects through Relationships.</p></div><button class="btn primary" id="addThemeBtn">+ Add theme</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="themeSearch" placeholder="Search theme name" /><select class="select" id="themeStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>Theme</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="themeTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="themeSearch" placeholder="Search theme name" /><select class="select" id="themeStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>Theme</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="themeTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-relationships">
         <div class="page-head"><div><h1>Relationships</h1><p>Maintain evidence-backed links between organisations, facilities, projects and themes. A relationship can only be published once both ends are published.</p></div><button class="btn primary" id="addRelationshipBtn">+ Add relationship</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /><select class="select" id="relStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="table-wrap"><table><thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /><select class="select" id="relStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-sources">
@@ -110,7 +143,7 @@
         <div class="field"><label for="orgConfidenceField">Confidence *</label><select id="orgConfidenceField" required></select></div>
         <div class="field full"><label for="orgSummary">Summary *</label><textarea id="orgSummary" required></textarea></div>
         <div class="field"><label for="orgSectors">Sectors</label><input id="orgSectors" placeholder="Energy, Manufacturing" /><span class="help">Comma separated.</span></div>
-        <div class="field"><label for="orgThemes">Theme IDs</label><input id="orgThemes" placeholder="decarbonisation, battery-storage" /><span class="help">Comma separated.</span></div>
+        <div class="field"><label for="orgThemes">Other topic tags</label><input id="orgThemes" placeholder="industrial-heat, advanced-manufacturing" /><span class="help">Comma separated tags that have no theme node. Link to a research theme with a relationship (Network editor or Relationships).</span></div>
         <div class="field"><label for="orgWebsite">Website</label><input id="orgWebsite" type="url" placeholder="https://" /></div>
         <div class="field"><label for="orgUpdated">Last checked</label><input id="orgUpdated" type="date" /></div>
         <div class="field full"><label for="orgOffices">Offices (map locations)</label><textarea id="orgOffices" placeholder="head | VIC | Melbourne | Corporate governance&#10;branch | WA | Perth | Pilbara liaison"></textarea><span class="help">One per line: role (head or branch) | state code | city | focus. The map has no coordinates; pins are placed by state. Organisations with no office show as &ldquo;location unavailable&rdquo;.</span></div>
@@ -129,6 +162,7 @@
         <div class="field"><label for="relTarget">To *</label><select id="relTarget" required></select></div>
         <div class="field"><label for="relType">Relationship type *</label><select id="relType" required></select></div>
         <div class="field"><label for="relConfidence">Confidence *</label><select id="relConfidence" required></select></div>
+        <div class="field"><label for="relIntensity">Strength *</label><select id="relIntensity" required><option value="weak">Weak</option><option value="medium" selected>Medium</option><option value="strong">Strong</option></select></div>
         <div class="field full"><label for="relEvidence">Evidence or source note</label><textarea id="relEvidence" placeholder="Describe the evidence supporting this relationship"></textarea></div>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="relationshipDialog">Cancel</button><button class="btn teal" type="submit">Save relationship</button></div>
@@ -142,16 +176,22 @@
         <input type="hidden" id="projectOriginalId" />
         <div class="field full"><label for="projectName">Project or initiative name *</label><input id="projectName" required /></div>
         <div class="field"><label for="projectId">Record ID *</label><input id="projectId" required pattern="[a-z0-9\-]+" /></div>
-        <div class="field"><label for="projectHost">Host organisation</label><select id="projectHost"></select></div>
+        <div class="field"><label>Host organisation</label><div id="projectHostInfo" class="help" style="padding:9px 0"></div><span class="help">The host is defined by a &ldquo;Hosted by&rdquo; relationship from this project. Add or change it in the Network editor or Relationships.</span></div>
         <div class="field"><label for="projectState">State</label><select id="projectState"></select></div>
         <div class="field"><label for="projectConfidence">Confidence *</label><select id="projectConfidence" required></select></div>
         <div class="field full"><label for="projectSummary">Summary *</label><textarea id="projectSummary" required></textarea></div>
-        <div class="field"><label for="projectThemes">Theme IDs</label><input id="projectThemes" placeholder="battery-storage, grid-integration" /><span class="help">Comma separated.</span></div>
+        <div class="field"><label for="projectThemes">Other topic tags</label><input id="projectThemes" placeholder="battery-recycling" /><span class="help">Comma separated tags with no theme node. Theme links are relationships.</span></div>
         <div class="field"><label for="projectUpdated">Last checked</label><input id="projectUpdated" type="date" /></div>
         <div class="field full"><label for="projectEvidence">Evidence or source note</label><textarea id="projectEvidence"></textarea></div>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="projectDialog">Cancel</button><button class="btn teal" type="submit">Save project</button></div>
     </form>
+  </dialog>
+
+  <dialog id="confirmDialog">
+    <div class="modal-head"><h2 id="confirmTitle">Confirm</h2><button class="close" type="button" id="confirmClose" aria-label="Close">×</button></div>
+    <div class="form-body confirm-body" id="confirmBody"></div>
+    <div class="form-actions"><button class="btn" type="button" id="confirmCancel">Cancel</button><button class="btn" type="button" id="confirmSecondary" hidden></button><button class="btn teal" type="button" id="confirmOk">OK</button></div>
   </dialog>
 
   <dialog id="previewDialog">
@@ -192,8 +232,10 @@
   <script src="../site-config.js"></script>
   <script src="auth.js"></script>
   <script src="../data.js"></script>
+  <script src="dataset-core.js"></script>
   <script src="demo-store.js"></script>
   <script src="store.js"></script>
+  <script src="network-editor.js"></script>
   <script src="console.js"></script>
 </body>
 </html>

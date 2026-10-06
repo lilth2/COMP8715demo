@@ -93,6 +93,39 @@ test("demo mode: a new record is a draft, invisible on the public page sharing t
   assert.equal(publicAfterWithdraw.store.snapshot().actors.some(item => item.id === actor.id), false, "withdrawing must remove it from the public page again");
 });
 
+test("demo mode: seed records show no pending changes and the public data carries no draft bookkeeping", async () => {
+  const admin = browser("", "lilth2.github.io", { pathname: "/COMP8715demo/admin/index.html" });
+  await admin.store.ready;
+  const strip = r => { const c = JSON.parse(JSON.stringify(r)); delete c.status; delete c.publishedSnapshot; return c; };
+  for (const key of ["actors", "projects", "themes", "relationships"]) {
+    for (const record of admin.store.snapshot()[key]) {
+      assert.equal(record.status, "published");
+      assert.equal(JSON.stringify(strip(record)), JSON.stringify(record.publishedSnapshot), key + "/" + record.id + " would wrongly show 'unpublished changes'");
+    }
+  }
+  const publicPage = browser("", "lilth2.github.io", { pathname: "/COMP8715demo/index.html" });
+  await publicPage.store.ready;
+  const publicState = publicPage.store.snapshot();
+  for (const key of ["actors", "projects", "themes", "relationships"]) {
+    for (const record of publicState[key]) assert.equal("status" in record || "publishedSnapshot" in record, false, key + "/" + record.id + " leaks bookkeeping to the public page");
+  }
+});
+
+test("demo mode: browser data saved by the first release (snapshot containing status) is healed on load", async () => {
+  const memory = new Map();
+  const first = browser("", "lilth2.github.io", { memory });
+  await first.store.ready;
+  await first.auth.login("admin", first.password);
+  await first.store.upsertActor({ id: "heal-test", name: "Heal Test", type: "university", summary: "x", state: "NSW", themes: [], dataConfidence: "needs-review" });
+  const saved = JSON.parse(memory.get("rd-directory-demo-data-v1"));
+  saved.actors.forEach(a => { if (a.publishedSnapshot) a.publishedSnapshot.status = "published"; });
+  memory.set("rd-directory-demo-data-v1", JSON.stringify(saved));
+  const reopened = browser("", "lilth2.github.io", { memory });
+  await reopened.store.ready;
+  const actor = reopened.store.snapshot().actors.find(a => a.publishedSnapshot);
+  assert.equal("status" in actor.publishedSnapshot, false);
+});
+
 test("demo mode: research themes are manageable through the same store, and relationships only publish once both ends are published", async () => {
   const f = browser();
   await f.store.ready;

@@ -249,6 +249,7 @@
   .entity-link{ color:var(--brand-strong); text-decoration:none; font-weight:600; }
   .entity-link:hover{ text-decoration:underline; }
   .entity-link-unavailable{ color:var(--ink-muted); font-style:italic; }
+  [hidden]{ display:none !important; }
   .data-notice.error{ color:#fff; background:var(--status-critical); border-color:var(--status-critical); }
   .data-notice .retry-btn{ margin-left:8px; font:inherit; font-weight:700; text-decoration:underline; background:none; border:none; color:inherit; cursor:pointer; padding:0; }
   .why-btn{
@@ -531,7 +532,7 @@
     <a class="tab-btn" href="admin/login.html" style="text-decoration:none; margin-left:auto; display:inline-flex; align-items:center; color:var(--brand-strong);" aria-label="Administrator login">Admin Login</a>
   </nav>
 
-  <div class="data-notice error" id="globalDataError" role="alert" hidden style="margin:0;border-radius:0;display:block;"></div>
+  <div class="data-notice error" id="globalDataError" role="alert" hidden style="margin:0;border-radius:0;"></div>
   <main class="views" id="views">
 
     <!-- ============ OVERVIEW ============ -->

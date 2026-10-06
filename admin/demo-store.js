@@ -17,10 +17,15 @@
   // Node backend (backend/server-data.js) — kept in sync by hand since this file
   // runs in the browser, not under Node. See that file for the rationale.
   function migrateLifecycle(record) {
-    if (record && STATUS_VALUES.indexOf(record.status) !== -1) return record;
+    if (record && STATUS_VALUES.indexOf(record.status) !== -1) {
+      // Heal data persisted by the first release, whose snapshot wrongly carried `status`.
+      if (record.publishedSnapshot) record.publishedSnapshot = metaStrip(record.publishedSnapshot);
+      return record;
+    }
     var fields = metaStrip(record || {});
+    var snapshot = clone(fields);
     fields.status = "published";
-    fields.publishedSnapshot = clone(fields);
+    fields.publishedSnapshot = snapshot;
     return fields;
   }
   var defaults = clone({

@@ -48,5 +48,32 @@ test("migrating a legacy dataset.json keeps an untouched backup copy of the orig
   const legacy = JSON.stringify({ version: 1, actors: [{ id: "legacy-org", name: "Legacy", type: "university", state: "VIC", summary: "x", themes: [], dataConfidence: "verified" }], projects: [], relationships: [], sources: [], audit: [] });
   fs.writeFileSync(dataPath, legacy);
   createDataStore(dataPath);
-  assert.equal(fs.readFileSync(dataPath + ".pre-publish-workflow.bak", "utf8"), legacy);
+  assert.equal(fs.readFileSync(dataPath + ".bak-v1", "utf8"), legacy);
+});
+
+test("a version-2 file containing archived records is backed up, then archived records become non-public drafts", () => {
+  const dataPath = tmpDataPath();
+  const seed = createDataStore(undefined).snapshot();
+  const archived = { ...seed.actors[0], id: "was-archived", name: "Was Archived", status: "archived", publishedSnapshot: { ...seed.actors[0], id: "was-archived", name: "Was Archived" } };
+  const v2 = { ...seed, version: 2, actors: [...seed.actors, archived] };
+  delete v2.layout;
+  const original = JSON.stringify(v2);
+  fs.writeFileSync(dataPath, original);
+  const s = createDataStore(dataPath);
+  assert.equal(fs.readFileSync(dataPath + ".bak-v2", "utf8"), original, "original bytes preserved before migration");
+  assert.equal(s.migration().archivedToDraft, 1);
+  const migrated = s.snapshot().actors.find(a => a.id === "was-archived");
+  assert.equal(migrated.status, "draft");
+  assert.equal(migrated.name, "Was Archived", "content kept");
+  assert.equal(s.publicData().actors.some(a => a.id === "was-archived"), false, "never auto-published");
+  assert.equal(JSON.parse(fs.readFileSync(dataPath, "utf8")).version, 3, "migrated file persisted");
+  // a second start is a no-op
+  assert.equal(createDataStore(dataPath).migration(), null);
+});
+
+test("graph layout survives a restart", () => {
+  const dataPath = tmpDataPath();
+  const s = createDataStore(dataPath);
+  s.apply("setLayout", { positions: { "hilt-crc": { x: 100, y: 200 } } }, undefined, "tester");
+  assert.deepEqual(createDataStore(dataPath).snapshot().layout.nodes["hilt-crc"], { x: 100, y: 200 });
 });

@@ -11,8 +11,8 @@ const ROOT = path.resolve(__dirname, "..");
 const SESSION_TTL = 8 * 60 * 60 * 1000;
 const LOGIN_WINDOW = 15 * 60 * 1000;
 const COOKIE = "rd_admin_session";
-const PUBLIC_FILES = new Set(["index.html", "app.js", "data.js", "admin/store.js", "admin/login.html", "admin/login.js", "admin/auth.js", "admin/demo-store.js", "site-config.js"]);
-const ADMIN_FILES = new Set(["admin/index.html", "admin/console.js"]);
+const PUBLIC_FILES = new Set(["index.html", "app.js", "data.js", "admin/store.js", "admin/dataset-core.js", "ai-engine.js", "admin/login.html", "admin/login.js", "admin/auth.js", "admin/demo-store.js", "site-config.js"]);
+const ADMIN_FILES = new Set(["admin/index.html", "admin/console.js", "admin/network-editor.js"]);
 
 function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath } = {}) {
   if (!account || !account.username || !/^[a-f0-9]{128}$/.test(account.passwordHash || "") || !/^[a-f0-9]{64}$/.test(account.salt || "")) {

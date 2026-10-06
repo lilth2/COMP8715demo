@@ -2,14 +2,18 @@
   "use strict";
   var D = window.RD_DATA;
   var Auth = window.RD_ADMIN_AUTH;
-  if (!D || !Auth) return;
+  if (!D || !Auth || !window.RD_CORE) return;
+  // Pure helpers (publish planning, delete impact, pending-change detection) run on the shared
+  // core. Created before the first apply() so it captures the seed data, not live data.
+  var core = window.RD_CORE.createCore(D);
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function replaceArray(target, source) { target.splice.apply(target, [0, target.length].concat(clone(source || []))); }
   function slug(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
-  var state = { version: 1, actors: clone(D.actors), projects: clone(D.projectNodes), themes: clone(D.themeNodes), relationships: clone(D.relationships), sources: clone(D.sources), audit: [] };
+  var state = { version: 3, actors: clone(D.actors), projects: clone(D.projectNodes), themes: clone(D.themeNodes), relationships: clone(D.relationships), sources: clone(D.sources), layout: { nodes: {} }, audit: [] };
   function apply(value) {
     state = value;
     state.audit = state.audit || [];
+    state.layout = state.layout || { nodes: {} };
     replaceArray(D.actors, state.actors);
     replaceArray(D.projectNodes, state.projects);
     replaceArray(D.themeNodes, state.themes);
@@ -77,23 +81,27 @@
     deleteTheme: function (id) { return change("deleteTheme", undefined, id); },
     deleteRelationship: function (id) { return change("deleteRelationship", undefined, id); },
     deleteSource: function (id) { return change("deleteSource", undefined, id); },
-    publish: function (collection, id) { return change("publish", { collection: collection }, id); },
+    publish: function (collection, id, options) { return change("publish", { collection: collection, withDependencies: Boolean(options && options.withDependencies) }, id); },
     withdraw: function (collection, id) { return change("withdraw", { collection: collection }, id); },
-    archiveRecord: function (collection, id) { return change("archive", { collection: collection }, id); },
-    restoreRecord: function (collection, id) { return change("restore", { collection: collection }, id); },
-    // Relationships (in either status) that reference this record — used by the
-    // admin UI to warn before an archive/withdraw/delete hides or removes edges.
+    // Same planning code the server runs inside "publish", so the confirmation text always
+    // matches what publishing will actually do.
+    describePublish: function (collection, id) { return core.describePublish(state, collection, id); },
+    impactOf: function (collection, id) { return core.impactOf(state, collection, id); },
+    hasPendingChanges: function (record) { return core.hasPendingChanges(record); },
+    relLabel: function (rel) { return core.relLabel(state, rel); },
+    layout: function () { return clone(state.layout.nodes); },
+    setLayout: function (positions) { return change("setLayout", { positions: positions }); },
+    resetLayout: function () { return change("setLayout", { reset: true }); },
+    // Relationships (any status) that reference this record.
     relationshipsTouching: function (id) {
       return state.relationships.filter(function (item) { return item.sourceId === id || item.targetId === id; });
     },
     reset: function () { return change("reset"); },
     importState: function (value) { return change("importState", value); }
   };
-  // Public (non-admin) pages must only ever receive published, self-consistent
-  // records — the live working copy with drafts/archives belongs to the admin
-  // console only. In backend mode this split already happens server-side
-  // (GET /api/dataset vs /api/admin/dataset); in browser demo mode there is no
-  // server, so the split has to happen here instead.
+  // Public (non-admin) pages must only ever receive published, self-consistent records. In
+  // backend mode that split happens on the server (GET /api/dataset vs /api/admin/dataset);
+  // in browser demo mode there is no server, so the same core does it here.
   store.ready = (Auth.isDemo()
     ? Promise.resolve(isAdmin ? window.RD_DEMO_STORE.snapshot() : window.RD_DEMO_STORE.publicSnapshot())
     : Auth.request(isAdmin ? "api/admin/dataset" : "api/dataset")
@@ -103,15 +111,13 @@
   }).catch(function (error) {
     store.loadError = error.message;
     if (!isAdmin) {
-      // Never leave the public page silently showing the full illustrative
-      // seed dataset as if it were live data when the real fetch failed.
+      // Never leave the public page silently showing placeholder data when the real fetch failed.
       apply({ version: 0, actors: [], projects: [], themes: [], relationships: [], sources: [], audit: [] });
     }
     return false;
   });
-  // Re-fetch the current view of the data (published-only on public pages). Used
-  // after the tab regains focus so a publish/withdraw made elsewhere shows up
-  // without a manual page reload. Failures keep the last good data and record the error.
+  // Re-fetch the current view of the data (published-only on public pages). Failures keep the
+  // last good data and record the error.
   store.reload = async function () {
     if (Auth.isDemo()) { apply(isAdmin ? window.RD_DEMO_STORE.snapshot() : window.RD_DEMO_STORE.publicSnapshot()); return true; }
     try {

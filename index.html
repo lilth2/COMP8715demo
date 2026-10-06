@@ -454,27 +454,6 @@
   .why-popover h6{ margin:0 0 6px; font-size:11px; color:var(--ink); }
   .why-popover .wp-close{ position:absolute; top:6px; right:8px; border:none; background:none; color:var(--ink-muted); cursor:pointer; font-size:13px; }
 
-  /* ---------------- Walkthrough panel ---------------- */
-  .walkthrough-bar{
-    position:fixed; right:18px; bottom:18px; z-index:90; background:var(--brand-strong);
-    color:#fff; border-radius:14px; padding:12px 14px; box-shadow:var(--shadow-2); width:280px;
-    display:flex; flex-direction:column; gap:8px;
-  }
-  .walkthrough-bar .wt-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .walkthrough-bar .wt-step{ font-size:10px; opacity:0.75; text-transform:uppercase; letter-spacing:0.05em; }
-  .walkthrough-bar .wt-exit{ border:none; background:none; color:#fff; opacity:0.75; cursor:pointer; font-size:14px; padding:0; line-height:1; }
-  .walkthrough-bar .wt-exit:hover{ opacity:1; }
-  .walkthrough-bar .wt-caption{ font-size:12.5px; line-height:1.4; }
-  .walkthrough-bar .wt-actions{ display:flex; justify-content:flex-end; gap:8px; }
-  .walkthrough-bar button.wt-nav{ font-size:11.5px; font-weight:600; padding:6px 11px; border-radius:999px; border:1px solid rgba(255,255,255,0.35); background:transparent; color:#fff; cursor:pointer; }
-  .walkthrough-bar button.wt-nav.primary{ background:#fff; color:var(--brand-strong); border-color:#fff; }
-  .walkthrough-bar button.wt-nav:disabled{ opacity:0.4; cursor:default; }
-  .wt-highlight{
-    outline:3px solid var(--plum) !important; outline-offset:2px !important;
-    box-shadow:0 0 0 6px var(--plum-tint) !important; border-radius:8px;
-    animation:wt-pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes wt-pulse{ 0%,100%{ outline-color:var(--plum); } 50%{ outline-color:var(--brand); } }
 
   @media (max-width: 980px){
     .metric-grid{ grid-template-columns:repeat(3,1fr); }
@@ -515,7 +494,6 @@
     </div>
     <span class="demo-badge">Pilot demo: CRCs + NCRIS facilities in decarbonisation</span>
     <button class="icon-btn" id="shortlistBtn">Shortlist <span class="count-badge" id="shortlistCount">0</span></button>
-    <button class="icon-btn primary" id="walkthroughBtn">▶ Run demo walkthrough</button>
     <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
     </button>
@@ -747,21 +725,11 @@
     <div class="drawer-body" id="shortlistBody"></div>
   </aside>
 
-  <div class="walkthrough-bar" id="walkthroughBar" hidden>
-    <div class="wt-head">
-      <div class="wt-step" id="wtStep"></div>
-      <button class="wt-exit" id="wtExit" aria-label="Exit walkthrough">✕</button>
-    </div>
-    <div class="wt-caption" id="wtCaption"></div>
-    <div class="wt-actions">
-      <button class="wt-nav" id="wtBack">Back</button>
-      <button class="wt-nav primary" id="wtNext">Next</button>
-    </div>
-  </div>
-
 </div>
 <script src="data.js"></script>
 <script src="site-config.js"></script>
+<script src="admin/dataset-core.js"></script>
+<script src="ai-engine.js"></script>
 <script src="admin/auth.js"></script>
 <script src="admin/demo-store.js"></script>
 <script src="admin/store.js"></script>

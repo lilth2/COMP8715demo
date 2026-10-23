@@ -36,9 +36,15 @@ CREATE TABLE IF NOT EXISTS accounts (
   disabled_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_by TEXT
+  created_by TEXT,
+  -- Set true for an account created with a one-time/initialisation credential (see
+  -- backend/accounts-bootstrap.js), so the recipient is forced to pick their own password before
+  -- doing anything else. Cleared the moment that account changes its own password.
+  must_change_password BOOLEAN NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS idx_accounts_role_env ON accounts (role, environment);
+-- Idempotent for a database migrated before this column existed (CREATE TABLE above is a no-op there).
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

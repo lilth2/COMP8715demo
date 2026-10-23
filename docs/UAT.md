@@ -102,10 +102,16 @@ npm run setup:accounts -- --admin-username admin --stakeholder-username jane.sta
 - Each account's initial password is generated randomly and printed to the terminal **once** — it
   is never written to a file or logged anywhere. Copy it immediately and send it to her through a
   secure channel (not committed to this repo, not pasted into a public chat).
+- A **generated** initial password forces a password change at first login: the account can sign
+  in with it, but the server blocks every other admin/feedback route (returns `403` with
+  `mustChangePassword: true`) until she sets her own password. The admin console shows a
+  non-dismissible "Choose your own password" dialog immediately after login in this case — she
+  cannot click through it without picking one. This means the one-time credential you hand her
+  never becomes her standing password.
 - Re-running the command is safe: an existing username is left untouched, not overwritten.
 - You can set a specific password instead of a generated one with `--stakeholder-password "..."`
   if you need to (e.g. matching a password manager entry you're handing her), but a generated one
-  is preferred.
+  is preferred — it is the one that gets the forced-change protection above.
 
 ### 3.2 Giving her access
 

@@ -32,10 +32,16 @@ async function ensureAccount(accountsStore, { username, role, passwordEnvVar, ex
     console.log(`Account "${username}" (${role}) already exists in this environment — left unchanged. Disabled: ${existing.disabled}.`);
     return null;
   }
+  // A generated one-time password (the common case: no --*-password flag given) forces a change
+  // on first login, per the brief — the recipient must set a password only they know before the
+  // account can do anything. An explicitly-supplied password is assumed already chosen by/for the
+  // account holder and does not force a change.
+  const generated = !explicitPassword && !process.env[passwordEnvVar];
   const password = explicitPassword || process.env[passwordEnvVar] || randomPassword();
-  const created = await accountsStore.create({ username, password, role, displayName, createdBy: "accounts-bootstrap-script" });
+  const created = await accountsStore.create({ username, password, role, displayName, createdBy: "accounts-bootstrap-script", mustChangePassword: generated });
   console.log(`Created ${role} account: username="${created.username}"  password="${password}"`);
-  console.log(`  (Store this password securely now — it is not saved anywhere and cannot be shown again. Change it after first login.)`);
+  if (generated) console.log(`  This is a one-time password — the account must set its own password at first login before it can do anything else.`);
+  console.log(`  (Store this password securely now — it is not saved anywhere and cannot be shown again.)`);
   return created;
 }
 

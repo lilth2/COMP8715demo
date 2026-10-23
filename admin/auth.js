@@ -63,6 +63,11 @@
       if (isDemo()) { sessionStorage.removeItem(DEMO_KEY); return { authenticated: false }; }
       var result = await request("api/logout", {}); clearToken(); return result;
     },
+    changePassword: async function (currentPassword, newPassword) {
+      var result = await request("api/account/change-password", { currentPassword: currentPassword, newPassword: newPassword });
+      sessionStorage.setItem(KEY, result.token);
+      return result;
+    },
     request: request
   };
 })();

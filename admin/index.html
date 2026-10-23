@@ -354,6 +354,20 @@
     </form>
   </dialog>
 
+  <dialog id="forcedPasswordDialog">
+    <form id="forcedPasswordForm">
+      <div class="modal-head"><h2>Choose your own password</h2></div>
+      <div class="form-body"><div class="form-grid">
+        <p class="help full" style="grid-column:1/-1">This account was created with a one-time password. Set a password only you know before continuing.</p>
+        <div class="field full"><label for="forcedPasswordCurrent">One-time password *</label><input id="forcedPasswordCurrent" type="password" required /></div>
+        <div class="field full"><label for="forcedPasswordNew">New password *</label><input id="forcedPasswordNew" type="password" required minlength="12" placeholder="At least 12 characters" /></div>
+        <div class="field full"><label for="forcedPasswordConfirm">Confirm new password *</label><input id="forcedPasswordConfirm" type="password" required minlength="12" /></div>
+        <p class="help full" id="forcedPasswordError" style="grid-column:1/-1;color:var(--red)" hidden></p>
+      </div></div>
+      <div class="form-actions"><button class="btn teal" type="submit">Set password and continue</button></div>
+    </form>
+  </dialog>
+
   <dialog id="feedbackDialog">
     <form id="feedbackForm">
       <div class="modal-head"><h2>Report an issue / Suggest an improvement</h2><button class="close" type="button" data-close="feedbackDialog">×</button></div>

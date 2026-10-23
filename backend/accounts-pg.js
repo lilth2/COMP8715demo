@@ -46,6 +46,7 @@ function createAccountsStore(pool, environment) {
       id: row.id, username: row.username, role: row.role, displayName: row.display_name,
       environment: row.environment, disabled: row.disabled_at !== null, disabledAt: row.disabled_at,
       expiresAt: row.expires_at, createdAt: row.created_at, createdBy: row.created_by,
+      mustChangePassword: row.must_change_password,
     };
   }
 
@@ -73,7 +74,7 @@ function createAccountsStore(pool, environment) {
     // Creates a new account in this environment. The caller (an authenticated admin/stakeholder
     // session — see server.js's route guard) provides the initial password directly; there is no
     // self-service registration endpoint anywhere in this app.
-    async create({ username, password, role, displayName, createdBy, expiresAt }) {
+    async create({ username, password, role, displayName, createdBy, expiresAt, mustChangePassword }) {
       assertUsername(username); assertPassword(password); assertRole(role);
       if (expiresAt !== undefined && expiresAt !== null) {
         // The brief is explicit: do not invent an expiry date before the user has confirmed one.
@@ -86,19 +87,25 @@ function createAccountsStore(pool, environment) {
       const salt = randomBytes(32).toString("hex");
       const passwordHash = scryptSync(password, salt, 64).toString("hex");
       const r = await pool.query(
-        `INSERT INTO accounts (username, password_salt, password_hash, role, display_name, environment, created_by, expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [username, salt, passwordHash, role, displayName || null, environment, createdBy || null, expiresAt || null]
+        `INSERT INTO accounts (username, password_salt, password_hash, role, display_name, environment, created_by, expires_at, must_change_password)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [username, salt, passwordHash, role, displayName || null, environment, createdBy || null, expiresAt || null, Boolean(mustChangePassword)]
       );
       return toPublic(r.rows[0]);
     },
-    async setPassword(id, newPassword) {
+    // `clearMustChange` is true for a self-service password change (the forced-change flow) and
+    // false for an admin resetting someone else's password, which should not silently clear a
+    // still-pending forced-change requirement the admin didn't know about.
+    async setPassword(id, newPassword, { clearMustChange = false } = {}) {
       assertPassword(newPassword);
       const row = await findById(id);
       if (!row) throw Object.assign(new Error("Account not found."), { status: 404 });
       const salt = randomBytes(32).toString("hex");
       const passwordHash = scryptSync(newPassword, salt, 64).toString("hex");
-      await pool.query("UPDATE accounts SET password_salt=$2, password_hash=$3 WHERE id=$1", [id, salt, passwordHash]);
+      await pool.query(
+        "UPDATE accounts SET password_salt=$2, password_hash=$3, must_change_password = CASE WHEN $4 THEN false ELSE must_change_password END WHERE id=$1",
+        [id, salt, passwordHash, clearMustChange]
+      );
     },
     async disable(id) {
       const row = await findById(id);

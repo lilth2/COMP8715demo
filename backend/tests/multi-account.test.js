@@ -123,6 +123,43 @@ test("Multi-account auth: admin/stakeholder roles, account management, disable/s
     assert.equal(reloginNew.status, 200, "the new password works");
   });
 
+  await t.test("an account with mustChangePassword must change its password before reaching any other admin/feedback route", async () => {
+    await uatAccounts.create({ username: "onetimer", password: "One-time-password-2026!", role: "stakeholder", createdBy: "test", mustChangePassword: true });
+
+    const loginRes = await post(uatBase, "/api/login", { username: "onetimer", password: "One-time-password-2026!" });
+    assert.equal(loginRes.status, 200);
+    const loginBody = await loginRes.json();
+    assert.equal(loginBody.mustChangePassword, true, "login response flags that this session must change its password");
+    const token = loginBody.token;
+
+    // Blocked everywhere except /api/session, /api/logout and the change-password route itself.
+    const blockedRes = await get(uatBase, "/api/admin/accounts", token);
+    assert.equal(blockedRes.status, 403, "admin routes are blocked until the password is changed");
+    assert.equal((await blockedRes.json()).mustChangePassword, true);
+    const sessionRes = await get(uatBase, "/api/session", token);
+    assert.equal(sessionRes.status, 200, "/api/session itself must stay reachable so the UI can detect the pending change");
+
+    // The wrong current password is rejected without changing anything.
+    const wrongRes = await post(uatBase, "/api/account/change-password", { currentPassword: "not-the-right-password", newPassword: "A-brand-new-password-2026!" }, token);
+    assert.equal(wrongRes.status, 401);
+    assert.equal((await get(uatBase, "/api/admin/accounts", token)).status, 403, "still blocked after a failed change attempt");
+
+    const changeRes = await post(uatBase, "/api/account/change-password", { currentPassword: "One-time-password-2026!", newPassword: "A-brand-new-password-2026!" }, token);
+    const changeBody = await changeRes.json();
+    assert.equal(changeRes.status, 200, JSON.stringify(changeBody));
+    assert.equal(changeBody.mustChangePassword, false);
+
+    // The old session token (issued before the change) is revoked; the new token works everywhere.
+    assert.equal((await get(uatBase, "/api/admin/accounts", token)).status, 401, "the pre-change session token is revoked, not just unblocked");
+    assert.equal((await get(uatBase, "/api/admin/accounts", changeBody.token)).status, 200, "the new session token has full access immediately");
+
+    const reloginOld = await post(uatBase, "/api/login", { username: "onetimer", password: "One-time-password-2026!" });
+    assert.equal(reloginOld.status, 401, "the one-time password no longer works");
+    const reloginNew = await post(uatBase, "/api/login", { username: "onetimer", password: "A-brand-new-password-2026!" });
+    assert.equal(reloginNew.status, 200);
+    assert.equal((await reloginNew.json()).mustChangePassword, false, "logging in again after the change no longer requires another change");
+  });
+
   await t.test("every /api/admin/* and /api/admin/accounts/* endpoint rejects an unauthenticated request", async () => {
     assert.equal((await get(uatBase, "/api/admin/accounts")).status, 401);
     assert.equal((await get(uatBase, "/api/admin/dataset")).status, 401);

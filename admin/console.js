@@ -722,6 +722,32 @@
     showToast: showToast, showError: showError, askConfirm: askConfirm, confidencePill: confidencePill, statusPill: statusPill,
   };
 
+  async function forcePasswordChange() {
+    var dlg = $("#forcedPasswordDialog");
+    var form = $("#forcedPasswordForm");
+    var errorBox = $("#forcedPasswordError");
+    return new Promise(function (resolve) {
+      function onSubmit(event) {
+        event.preventDefault();
+        errorBox.hidden = true;
+        var current = $("#forcedPasswordCurrent").value;
+        var next = $("#forcedPasswordNew").value;
+        var confirm = $("#forcedPasswordConfirm").value;
+        if (next !== confirm) { errorBox.textContent = "New password and confirmation do not match."; errorBox.hidden = false; return; }
+        window.RD_ADMIN_AUTH.changePassword(current, next).then(function () {
+          form.removeEventListener("submit", onSubmit);
+          dlg.close();
+          showToast("Password set. You're signed in with your new password.");
+          resolve();
+        }).catch(function (error) {
+          errorBox.textContent = error.message;
+          errorBox.hidden = false;
+        });
+      }
+      form.addEventListener("submit", onSubmit);
+      dlg.showModal();
+    });
+  }
   async function requireLogin() {
     try {
       var session = await window.RD_ADMIN_AUTH.session();
@@ -741,6 +767,13 @@
           banner.textContent = "USER ACCEPTANCE TESTING — this is an isolated test environment, not production.";
           document.body.insertBefore(banner, document.body.firstChild);
         }
+      }
+      // Server-enforced: an account created from a one-time credential cannot do anything else
+      // until it picks its own password (backend/server.js blocks every /api/admin/* and
+      // /api/feedback route for such a session). The dialog has no close/cancel — it is not
+      // optional, and it does not return control to the rest of init() until it resolves.
+      if (session.mustChangePassword) {
+        await forcePasswordChange();
       }
       return true;
     } catch (error) {

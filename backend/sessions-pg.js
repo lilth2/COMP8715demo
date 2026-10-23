@@ -22,7 +22,7 @@ function createSessionsStore(pool, ttlMs) {
     // disabled/expired account's existing sessions stop working immediately, not just at next login.
     async get(token) {
       const r = await pool.query(
-        `SELECT s.account_id, s.expires_at, a.username, a.role, a.environment, a.disabled_at, a.expires_at AS account_expires_at
+        `SELECT s.account_id, s.expires_at, a.username, a.role, a.environment, a.disabled_at, a.expires_at AS account_expires_at, a.must_change_password
          FROM sessions s JOIN accounts a ON a.id = s.account_id
          WHERE s.token_hash = $1 AND s.revoked_at IS NULL`,
         [hashToken(token)]
@@ -32,7 +32,7 @@ function createSessionsStore(pool, ttlMs) {
       if (new Date(row.expires_at) <= new Date()) return null;
       if (row.disabled_at) return null;
       if (row.account_expires_at && new Date(row.account_expires_at) <= new Date()) return null;
-      return { accountId: row.account_id, username: row.username, role: row.role, environment: row.environment, expires: new Date(row.expires_at).getTime() };
+      return { accountId: row.account_id, username: row.username, role: row.role, environment: row.environment, expires: new Date(row.expires_at).getTime(), mustChangePassword: row.must_change_password };
     },
     async revoke(token) {
       await pool.query("UPDATE sessions SET revoked_at = now() WHERE token_hash = $1", [hashToken(token)]);

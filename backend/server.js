@@ -184,7 +184,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         return json(res, 200, health);
       }
       if (url.pathname === "/api/session" && req.method === "GET") {
-        return json(res, 200, current ? { authenticated: true, username: current.username, role: current.role || "admin", environment: current.environment || environment, expiresAt: current.expires } : { authenticated: false });
+        return json(res, 200, current ? { authenticated: true, username: current.username, role: current.role || "admin", environment: current.environment || environment, expiresAt: current.expires, mustChangePassword: Boolean(current.mustChangePassword) } : { authenticated: false });
       }
       if (url.pathname === "/api/login" && req.method === "POST") {
         const client = req.socket.remoteAddress;
@@ -200,7 +200,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
           attempts.delete(client);
           if (current) await sessionsStore.revoke(current.token);
           const { token, expiresAt } = await sessionsStore.create(authenticated.id, client);
-          return json(res, 200, { authenticated: true, token, username: authenticated.username, role: authenticated.role, environment: authenticated.environment, expiresAt }, { "Set-Cookie": cookie(token, SESSION_TTL / 1000) });
+          return json(res, 200, { authenticated: true, token, username: authenticated.username, role: authenticated.role, environment: authenticated.environment, expiresAt, mustChangePassword: Boolean(authenticated.mustChangePassword) }, { "Set-Cookie": cookie(token, SESSION_TTL / 1000) });
         }
         const key = await deriveKey(value.password, account.salt, 64);
         if (!timingSafeEqual(key, Buffer.from(account.passwordHash, "hex")) || value.username !== account.username) {
@@ -215,6 +215,29 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
       if (url.pathname === "/api/logout" && req.method === "POST") {
         if (current) { if (multiAccount) await sessionsStore.revoke(current.token); else sessions.delete(current.token); }
         return json(res, 200, { authenticated: false }, { "Set-Cookie": cookie("", 0) });
+      }
+      // Self-service password change, the only route a session with mustChangePassword=true may
+      // call besides /api/session and /api/logout (enforced by the gate just below) — this is how
+      // an account created from a one-time/initialisation credential (backend/accounts-bootstrap.js)
+      // picks its own real password before it can do anything else.
+      if (url.pathname === "/api/account/change-password" && req.method === "POST") {
+        if (!multiAccount) return json(res, 404, { message: "Account management requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const value = await body(req);
+        if (typeof value.currentPassword !== "string" || typeof value.newPassword !== "string") return json(res, 400, { message: "Current and new password are required." });
+        const verified = await accountsStore.authenticate(current.username, value.currentPassword);
+        if (!verified) return json(res, 401, { message: "Current password is incorrect." });
+        await accountsStore.setPassword(current.accountId, value.newPassword, { clearMustChange: true });
+        await sessionsStore.revokeAllForAccount(current.accountId);
+        const { token, expiresAt } = await sessionsStore.create(current.accountId, req.socket.remoteAddress);
+        await accountsStore.audit({ actor: current.username, action: "Changed own password", targetAccountId: current.accountId, targetUsername: current.username });
+        return json(res, 200, { authenticated: true, token, username: current.username, role: current.role, environment: current.environment, expiresAt, mustChangePassword: false }, { "Set-Cookie": cookie(token, SESSION_TTL / 1000) });
+      }
+      // An account with a pending forced password change (see above) may only reach /api/session,
+      // /api/logout and the change-password route itself — enforced server-side, not left to the
+      // admin UI to "remember" to redirect, so a stale frontend or a direct API call can't skip it.
+      if (current && current.mustChangePassword && (url.pathname.startsWith("/api/admin/") || url.pathname.startsWith("/api/feedback"))) {
+        return json(res, 403, { message: "You must change your password before continuing.", mustChangePassword: true });
       }
       if (url.pathname === "/api/dataset" && req.method === "GET") {
         var publicData = await store.publicData();

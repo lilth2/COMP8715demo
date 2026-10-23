@@ -14,13 +14,17 @@ const COOKIE = "rd_admin_session";
 const PUBLIC_FILES = new Set(["index.html", "app.js", "data.js", "admin/store.js", "admin/dataset-core.js", "ai-engine.js", "admin/login.html", "admin/login.js", "admin/auth.js", "admin/demo-store.js", "site-config.js"]);
 const ADMIN_FILES = new Set(["admin/index.html", "admin/console.js", "admin/network-editor.js"]);
 
-function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath } = {}) {
+function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore } = {}) {
   if (!account || !account.username || !/^[a-f0-9]{128}$/.test(account.passwordHash || "") || !/^[a-f0-9]{64}$/.test(account.salt || "")) {
     throw new Error("A valid initial admin account is required. Run npm run setup:admin first.");
   }
   const sessions = new Map();
   const attempts = new Map();
-  const store = createDataStore(dataPath);
+  // Postgres-backed storage (backend/db/pg-store.js) is injected via `store` when DATABASE_URL
+  // is set (see the bottom of this file); otherwise the original single-JSON-file store is used.
+  // Both expose the same snapshot()/publicData()/apply()/migration() shape; this file awaits
+  // every call so it works identically whether the method is sync (JSON store) or async (Postgres).
+  const store = injectedStore || createDataStore(dataPath);
   const cleanup = setInterval(() => {
     const now = Date.now();
     for (const [key, value] of sessions) if (value.expires <= now) sessions.delete(key);
@@ -112,16 +116,16 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         if (current) sessions.delete(current.token);
         return json(res, 200, { authenticated: false }, { "Set-Cookie": cookie("", 0) });
       }
-      if (url.pathname === "/api/dataset" && req.method === "GET") return json(res, 200, store.publicData());
+      if (url.pathname === "/api/dataset" && req.method === "GET") return json(res, 200, await store.publicData());
       if (url.pathname === "/api/admin/dataset" && req.method === "GET") {
         if (!current) return json(res, 401, { message: "Administrator login required." });
-        return json(res, 200, store.snapshot());
+        return json(res, 200, await store.snapshot());
       }
       if (url.pathname === "/api/admin/action" && req.method === "POST") {
         if (!current) return json(res, 401, { message: "Administrator login required." });
         const value = await body(req);
         if (!value || typeof value.operation !== "string") return json(res, 400, { message: "Invalid administrator action." });
-        return json(res, 200, store.apply(value.operation, value.value, value.id, current.username));
+        return json(res, 200, await store.apply(value.operation, value.value, value.id, current.username));
       }
       if (url.pathname.startsWith("/api/")) return json(res, 404, { message: "Not found." });
       if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, { message: "Method not allowed." });
@@ -162,10 +166,23 @@ if (require.main === module) {
   } else account = JSON.parse(fs.readFileSync(accountPath, "utf8"));
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
   for (const origin of allowedOrigins) if (new URL(origin).origin !== origin) throw new Error("ALLOWED_ORIGINS entries must be complete origins without a path or trailing slash.");
-  const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json") });
   const port = Number(process.env.PORT || 8765);
   const host = process.env.HOST || (secureCookies ? "0.0.0.0" : "127.0.0.1");
-  app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));
+  (async () => {
+    let store;
+    if (process.env.DATABASE_URL) {
+      const { Pool } = require("pg");
+      const { createPgDataStore } = require("./db/pg-store");
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      await pool.query("SELECT 1"); // fail fast on a bad connection string instead of on the first request
+      store = createPgDataStore(pool);
+      console.log("Using PostgreSQL storage (DATABASE_URL is set).");
+    } else {
+      console.log("Using single-file JSON storage (DATA_PATH). Set DATABASE_URL to use PostgreSQL instead.");
+    }
+    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store });
+    app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));
+  })().catch(error => { console.error("Failed to start: " + error.message); process.exit(1); });
 }
 
 module.exports = { createApp };

@@ -28,6 +28,7 @@
     .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px}.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow)}.metric .value{font-size:28px;font-weight:700;color:var(--navy)}.metric .label{color:var(--muted);margin-top:4px}.metric .meta{font-size:11px;color:var(--teal);margin-top:10px}
     .panel{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}.panel-head h2{font-size:16px;margin:0;color:var(--navy)}.panel-body{padding:18px}.two-col{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
     .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}.search{min-width:260px;flex:1;border:1px solid #cbd5e0;background:#fff;border-radius:8px;padding:9px 11px}.select{border:1px solid #cbd5e0;background:#fff;border-radius:8px;padding:9px 11px}
+    .batch-toolbar{display:flex;align-items:center;gap:8px;background:var(--brand-tint,#e8edf7);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:10px}.batch-count{font-weight:600;font-size:13px;color:var(--navy);margin-right:6px}
     table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:#f7f9fb;padding:11px 12px;border-bottom:1px solid var(--line)}td{padding:12px;border-bottom:1px solid #edf1f5;vertical-align:top}tbody tr:hover{background:#fafcfd}.record-name{font-weight:600;color:var(--navy)}.record-sub{font-size:12px;color:var(--muted);margin-top:3px}.row-actions{display:flex;gap:6px;justify-content:flex-end}.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:600;background:#edf2f7;color:#506070}.pill.verified{background:#e3f4ed;color:#176f55}.pill.public-source{background:#e8f0fa;color:#285f96}.pill.needs-review,.pill.stale{background:#fff0df;color:#9a5b0e}.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
     .pill.status-draft{background:#eef1f5;color:#4a5568}.pill.status-published{background:#e3f4ed;color:#176f55}
     .ne-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.ne-toolbar .search{min-width:180px;flex:0 1 220px}.ne-sep{flex:1}
@@ -171,22 +172,22 @@
 
       <section class="page" id="page-organisations">
         <div class="page-head"><div><h1>Organisations</h1><p>Create and maintain organisation records shown in the Ecosystem View once published. New and edited records stay as drafts until you publish them.</p></div><button class="btn primary" id="addOrganisationBtn">+ Add organisation</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="orgSearch" placeholder="Search name, type, state or sector" /><select class="select" id="orgConfidence"><option value="">All confidence levels</option><option value="verified">Verified</option><option value="public-source">Public source</option><option value="inferred">Inferred</option><option value="needs-review">Needs review</option><option value="stale">Stale</option></select><select class="select" id="orgStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>Organisation</th><th>Type</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="orgTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="orgSearch" placeholder="Search name, type, state or sector" /><select class="select" id="orgConfidence"><option value="">All confidence levels</option><option value="verified">Verified</option><option value="public-source">Public source</option><option value="inferred">Inferred</option><option value="needs-review">Needs review</option><option value="stale">Stale</option></select><select class="select" id="orgStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="batch-toolbar" data-batch-toolbar="actors" hidden></div><div class="table-wrap"><table><thead><tr><th><input type="checkbox" data-batch-select-all="actors" /></th><th>Organisation</th><th>Type</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="orgTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-projects">
         <div class="page-head"><div><h1>Projects and initiatives</h1><p>Maintain research programs and initiatives linked to organisations and research themes in the Ecosystem View.</p></div><button class="btn primary" id="addProjectBtn">+ Add project</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="projectSearch" placeholder="Search project, host, state or theme" /><select class="select" id="projectStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Host</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="projectTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="projectSearch" placeholder="Search project, host, state or theme" /><select class="select" id="projectStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="batch-toolbar" data-batch-toolbar="projects" hidden></div><div class="table-wrap"><table><thead><tr><th><input type="checkbox" data-batch-select-all="projects" /></th><th>Project</th><th>Host</th><th>Location</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="projectTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-themes">
         <div class="page-head"><div><h1>Research themes</h1><p>Manage the concept nodes shown in the Ecosystem View network graph and Directory theme filters. Themes connect to organisations and projects through Relationships.</p></div><button class="btn primary" id="addThemeBtn">+ Add theme</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="themeSearch" placeholder="Search theme name" /><select class="select" id="themeStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>Theme</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="themeTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="themeSearch" placeholder="Search theme name" /><select class="select" id="themeStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="batch-toolbar" data-batch-toolbar="themes" hidden></div><div class="table-wrap"><table><thead><tr><th><input type="checkbox" data-batch-select-all="themes" /></th><th>Theme</th><th>Status</th><th>Confidence</th><th>Updated</th><th></th></tr></thead><tbody id="themeTableBody"></tbody></table></div></div></div>
       </section>
 
       <section class="page" id="page-relationships">
         <div class="page-head"><div><h1>Relationships</h1><p>Maintain evidence-backed links between organisations, facilities, projects and themes. A relationship can only be published once both ends are published.</p></div><button class="btn primary" id="addRelationshipBtn">+ Add relationship</button></div>
-        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /><select class="select" id="relStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
+        <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /><select class="select" id="relStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="batch-toolbar" data-batch-toolbar="relationships" hidden></div><div class="table-wrap"><table><thead><tr><th><input type="checkbox" data-batch-select-all="relationships" /></th><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
         <div class="panel" style="margin-top:16px"><div class="panel-body">
           <div class="page-head" style="margin-bottom:8px"><div><h2 style="margin:0">Relationship types</h2><p style="margin:4px 0 0">Types used by relationships above. New names typed into the relationship form are added here automatically. The two system types (Hosted by, Shares research theme) cannot be renamed or deleted because the app relies on them structurally.</p></div><button class="btn" id="addRelTypeBtn" type="button">+ Add type</button></div>
           <div class="table-wrap"><table><thead><tr><th>Name</th><th>ID</th><th>Colour</th><th>System</th><th></th></tr></thead><tbody id="relTypeTableBody"></tbody></table></div>
@@ -387,6 +388,17 @@
     </div>
   </dialog>
 
+  <dialog id="batchFieldDialog">
+    <form id="batchFieldForm">
+      <div class="modal-head"><h2>Edit field for selected records</h2><button class="close" type="button" data-close="batchFieldDialog">×</button></div>
+      <div class="form-body"><div class="form-grid">
+        <div class="field"><label for="batchFieldSelect">Field *</label><select id="batchFieldSelect"></select></div>
+        <div class="field"><label for="batchFieldValue">New value *</label><input id="batchFieldValue" required /></div>
+      </div></div>
+      <div class="form-actions"><button class="btn" type="button" data-close="batchFieldDialog">Cancel</button><button class="btn teal" type="submit">Apply to selected</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" hidden></div>
   <script src="../site-config.js"></script>
   <script src="auth.js"></script>
@@ -396,6 +408,7 @@
   <script src="store.js"></script>
   <script src="accounts.js"></script>
   <script src="feedback.js"></script>
+  <script src="bulk-actions.js"></script>
   <script src="network-editor.js"></script>
   <script src="bulk-import.js"></script>
   <script src="console.js"></script>

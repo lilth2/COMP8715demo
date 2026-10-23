@@ -130,6 +130,10 @@
     var value = $(selectId) ? $(selectId).value : "";
     return !value || record.status === value;
   }
+  function batchCheckboxHTML(collection, id) {
+    var checked = window.RD_BULK_ACTIONS && window.RD_BULK_ACTIONS.isSelected(collection, id) ? " checked" : "";
+    return '<input type="checkbox" class="batch-select" data-batch-collection="' + esc(collection) + '" data-batch-id="' + esc(id) + '"' + checked + " />";
+  }
   function recordLabel(kind, record) {
     return kind === "rel" ? Store.relLabel(record) : record.name;
   }
@@ -308,8 +312,9 @@
       return (!query || haystack.indexOf(query) >= 0) && (!confidence || actor.dataConfidence === confidence) && passesStatusFilter(actor, "#orgStatus");
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     $("#orgTableBody").innerHTML = actors.length ? actors.map(function (actor) {
-      return "<tr><td><div class=\"record-name\">" + esc(actor.name) + "</div><div class=\"record-sub\">" + esc(actor.id) + "</div></td><td>" + esc((D.TYPE_META[actor.type] || {}).label || title(actor.type)) + "</td><td>" + esc(actor.state || "—") + "</td><td>" + statusPill(actor) + "</td><td>" + confidencePill(actor.dataConfidence) + "</td><td>" + esc(formatDate(actor.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("org", actor) + "</td></tr>";
-    }).join("") : '<tr><td colspan="7" class="empty">No matching organisations.</td></tr>';
+      return "<tr><td>" + batchCheckboxHTML("actors", actor.id) + "</td><td><div class=\"record-name\">" + esc(actor.name) + "</div><div class=\"record-sub\">" + esc(actor.id) + "</div></td><td>" + esc((D.TYPE_META[actor.type] || {}).label || title(actor.type)) + "</td><td>" + esc(actor.state || "—") + "</td><td>" + statusPill(actor) + "</td><td>" + confidencePill(actor.dataConfidence) + "</td><td>" + esc(formatDate(actor.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("org", actor) + "</td></tr>";
+    }).join("") : '<tr><td colspan="8" class="empty">No matching organisations.</td></tr>';
+    if (window.RD_BULK_ACTIONS) window.RD_BULK_ACTIONS.refreshToolbar("actors");
   }
   function renderRelationships(snapshot) {
     var query = $("#relSearch").value.trim().toLowerCase();
@@ -317,8 +322,9 @@
       return [nodeName(rel.sourceId), nodeName(rel.targetId), rel.type].join(" ").toLowerCase().indexOf(query) >= 0 && passesStatusFilter(rel, "#relStatus");
     });
     $("#relTableBody").innerHTML = relationships.length ? relationships.map(function (rel) {
-      return "<tr><td><span class=\"record-name\">" + esc(nodeName(rel.sourceId)) + "</span></td><td>" + esc(relTypeDisplayName(rel.type)) + "</td><td><span class=\"record-name\">" + esc(nodeName(rel.targetId)) + "</span></td><td>" + statusPill(rel) + "</td><td>" + confidencePill(rel.confidence) + "</td><td><div class=\"record-sub\">" + esc(rel.evidence || "No evidence note") + "</div></td><td>" + lifecycleActionsHTML("rel", rel) + "</td></tr>";
-    }).join("") : '<tr><td colspan="7" class="empty">No matching relationships.</td></tr>';
+      return "<tr><td>" + batchCheckboxHTML("relationships", rel.id) + "</td><td><span class=\"record-name\">" + esc(nodeName(rel.sourceId)) + "</span></td><td>" + esc(relTypeDisplayName(rel.type)) + "</td><td><span class=\"record-name\">" + esc(nodeName(rel.targetId)) + "</span></td><td>" + statusPill(rel) + "</td><td>" + confidencePill(rel.confidence) + "</td><td><div class=\"record-sub\">" + esc(rel.evidence || "No evidence note") + "</div></td><td>" + lifecycleActionsHTML("rel", rel) + "</td></tr>";
+    }).join("") : '<tr><td colspan="8" class="empty">No matching relationships.</td></tr>';
+    if (window.RD_BULK_ACTIONS) window.RD_BULK_ACTIONS.refreshToolbar("relationships");
   }
   function renderProjects(snapshot) {
     var query = $("#projectSearch").value.trim().toLowerCase();
@@ -326,8 +332,9 @@
       return [project.name, nodeName(project.hostId), project.state, (project.themes || []).join(" ")].join(" ").toLowerCase().indexOf(query) >= 0 && passesStatusFilter(project, "#projectStatus");
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     $("#projectTableBody").innerHTML = projects.length ? projects.map(function (project) {
-      return "<tr><td><div class=\"record-name\">" + esc(project.name) + "</div><div class=\"record-sub\">" + esc(project.id) + "</div></td><td>" + esc(project.hostId ? nodeName(project.hostId) : "—") + "</td><td>" + esc(project.state || "—") + "</td><td>" + statusPill(project) + "</td><td>" + confidencePill(project.dataConfidence) + "</td><td>" + esc(formatDate(project.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("project", project) + "</td></tr>";
-    }).join("") : '<tr><td colspan="7" class="empty">No matching projects.</td></tr>';
+      return "<tr><td>" + batchCheckboxHTML("projects", project.id) + "</td><td><div class=\"record-name\">" + esc(project.name) + "</div><div class=\"record-sub\">" + esc(project.id) + "</div></td><td>" + esc(project.hostId ? nodeName(project.hostId) : "—") + "</td><td>" + esc(project.state || "—") + "</td><td>" + statusPill(project) + "</td><td>" + confidencePill(project.dataConfidence) + "</td><td>" + esc(formatDate(project.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("project", project) + "</td></tr>";
+    }).join("") : '<tr><td colspan="8" class="empty">No matching projects.</td></tr>';
+    if (window.RD_BULK_ACTIONS) window.RD_BULK_ACTIONS.refreshToolbar("projects");
   }
   function renderThemes(snapshot) {
     var query = $("#themeSearch").value.trim().toLowerCase();
@@ -335,8 +342,9 @@
       return theme.name.toLowerCase().indexOf(query) >= 0 && passesStatusFilter(theme, "#themeStatus");
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     $("#themeTableBody").innerHTML = themes.length ? themes.map(function (theme) {
-      return "<tr><td><div class=\"record-name\">" + esc(theme.name) + "</div><div class=\"record-sub\">" + esc(theme.id) + "</div></td><td>" + statusPill(theme) + "</td><td>" + confidencePill(theme.dataConfidence) + "</td><td>" + esc(formatDate(theme.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("theme", theme) + "</td></tr>";
-    }).join("") : '<tr><td colspan="5" class="empty">No matching research themes.</td></tr>';
+      return "<tr><td>" + batchCheckboxHTML("themes", theme.id) + "</td><td><div class=\"record-name\">" + esc(theme.name) + "</div><div class=\"record-sub\">" + esc(theme.id) + "</div></td><td>" + statusPill(theme) + "</td><td>" + confidencePill(theme.dataConfidence) + "</td><td>" + esc(formatDate(theme.lastUpdated)) + "</td><td>" + lifecycleActionsHTML("theme", theme) + "</td></tr>";
+    }).join("") : '<tr><td colspan="6" class="empty">No matching research themes.</td></tr>';
+    if (window.RD_BULK_ACTIONS) window.RD_BULK_ACTIONS.refreshToolbar("themes");
   }
   function renderSources(snapshot) {
     $("#sourceTableBody").innerHTML = snapshot.sources.length ? snapshot.sources.map(function (source) {
@@ -766,6 +774,7 @@
     if (window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.wireEvents();
     if (window.RD_ACCOUNTS) { window.RD_ACCOUNTS.wireEvents(); window.RD_ACCOUNTS.render(); }
     if (window.RD_FEEDBACK) { window.RD_FEEDBACK.wireEvents(); window.RD_FEEDBACK.render(); }
+    if (window.RD_BULK_ACTIONS) window.RD_BULK_ACTIONS.wireEvents();
     renderAll();
     document.body.classList.remove("auth-pending");
     window.setInterval(requireLogin, 60000);

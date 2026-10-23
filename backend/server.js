@@ -403,7 +403,15 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
       res.setHeader("Content-Type", file.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
       res.end(req.method === "HEAD" ? undefined : await fs.promises.readFile(path.join(ROOT, file)));
     } catch (error) {
-      if (!error.status) return json(res, 500, { message: "Unable to complete the request." });
+      if (!error.status) {
+        // An unexpected (non-HTTP-status) error never had its message or stack trace recorded
+        // anywhere — the client only ever saw a generic "Unable to complete the request.", and
+        // there was nothing in this process's own logs to diagnose it from, on Render or anywhere
+        // else. Never logs the request body (which can contain a password) or any Authorization
+        // header — only the route and the error itself.
+        console.error("Unhandled error on " + req.method + " " + url.pathname + ": " + (error && error.stack || error));
+        return json(res, 500, { message: "Unable to complete the request." });
+      }
       // A 403 is a meaningful security signal (an authenticated account hit a role check it
       // didn't pass, e.g. an ordinary account trying to triage someone else's feedback) worth
       // recording — unlike a bare 401 on every logged-out page view, which would make the audit
@@ -464,6 +472,15 @@ if (require.main === module) {
       const { createAccountsStore } = require("./accounts-pg");
       const { createSessionsStore } = require("./sessions-pg");
       const { createFeedbackStore } = require("./feedback-pg");
+      const { migrate } = require("./db/migrate");
+      // Applying the schema is idempotent (CREATE TABLE IF NOT EXISTS / ON CONFLICT DO NOTHING —
+      // see migrate.js), so running it on every boot, not just once by hand, closes a real gap: a
+      // DATABASE_URL that points at a reachable-but-unmigrated database (e.g. a freshly created
+      // Neon/Render database before anyone has run `npm run db:migrate` against it) previously
+      // started up fine and passed /api/health (which only runs `SELECT 1`, proving connectivity,
+      // not schema) while every real data route failed with an unlogged 500 — exactly the gap that
+      // let an unmigrated production/UAT deployment go live undetected.
+      await migrate(process.env.DATABASE_URL);
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       // node-postgres requires an 'error' listener on a long-lived Pool: an idle client losing its
       // connection (a network blip, the database restarting) emits an 'error' event that is fatal

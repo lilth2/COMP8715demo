@@ -716,7 +716,21 @@
     try {
       var session = await window.RD_ADMIN_AUTH.session();
       if (!session.authenticated) { window.location.replace("login.html"); return false; }
-      $("#adminIdentity").textContent = session.username + (window.RD_ADMIN_AUTH.isDemo() ? " · Demo administrator" : " · Administrator");
+      var roleLabel = session.role === "stakeholder" ? "Stakeholder (UAT)" : (window.RD_ADMIN_AUTH.isDemo() ? "Demo administrator" : "Administrator");
+      $("#adminIdentity").textContent = session.username + " · " + roleLabel;
+      // A UAT deployment is visually distinct at all times, not just on the login page, so no
+      // admin action can be mistaken for happening against production.
+      if (session.environment === "uat") {
+        document.body.classList.add("uat-environment");
+        if (!$("#uatBanner")) {
+          var banner = document.createElement("div");
+          banner.id = "uatBanner";
+          banner.setAttribute("role", "status");
+          banner.style.cssText = "background:#a9720a;color:#fff;text-align:center;padding:7px 12px;font-weight:600;font-size:13px;letter-spacing:.02em;";
+          banner.textContent = "USER ACCEPTANCE TESTING — this is an isolated test environment, not production.";
+          document.body.insertBefore(banner, document.body.firstChild);
+        }
+      }
       return true;
     } catch (error) {
       window.location.replace("login.html");

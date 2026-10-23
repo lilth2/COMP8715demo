@@ -61,11 +61,18 @@ function findPriorImport(snapshot, fingerprint) {
   return match ? { importedAt: match.importedAt, importedBy: match.importedBy, createdCount: match.createdCount, updatedCount: match.updatedCount } : null;
 }
 
-function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore } = {}) {
-  if (!account || !account.username || !/^[a-f0-9]{128}$/.test(account.passwordHash || "") || !/^[a-f0-9]{64}$/.test(account.salt || "")) {
+function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production" } = {}) {
+  // Two mutually-exclusive auth modes:
+  //  - Legacy single-admin (accountsStore not given): one hardcoded account, in-memory sessions
+  //    Map, exactly as before — unchanged behaviour for the existing JSON-file deployment story.
+  //  - Multi-account (accountsStore + sessionsStore given, Postgres-backed): real accounts with
+  //    roles (admin/stakeholder), server-side disable/expiry/session-revocation, and the account
+  //    management endpoints below. Used whenever DATABASE_URL is set (see bottom of this file).
+  const multiAccount = Boolean(accountsStore && sessionsStore);
+  if (!multiAccount && (!account || !account.username || !/^[a-f0-9]{128}$/.test(account.passwordHash || "") || !/^[a-f0-9]{64}$/.test(account.salt || ""))) {
     throw new Error("A valid initial admin account is required. Run npm run setup:admin first.");
   }
-  const sessions = new Map();
+  const sessions = new Map(); // legacy mode only
   const attempts = new Map();
   // Postgres-backed storage (backend/db/pg-store.js) is injected via `store` when DATABASE_URL
   // is set (see the bottom of this file); otherwise the original single-JSON-file store is used.
@@ -87,18 +94,22 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
     const now = Date.now();
     for (const [key, value] of sessions) if (value.expires <= now) sessions.delete(key);
     for (const [key, value] of attempts) if (value.until <= now) attempts.delete(key);
+    if (multiAccount) sessionsStore.cleanupExpired().catch(() => {});
   }, 60000);
   cleanup.unref();
 
-  function session(req) {
-    if (req.headers.authorization) {
-      const token = req.headers.authorization.replace(/^Bearer /, "");
-      const current = sessions.get(token);
-      if (!current || current.expires <= Date.now()) { sessions.delete(token); return null; }
-      return { token, ...current };
-    }
+  function tokenFromRequest(req) {
+    if (req.headers.authorization) return req.headers.authorization.replace(/^Bearer /, "");
     const entry = (req.headers.cookie || "").split(";").map(value => value.trim()).find(value => value.startsWith(COOKIE + "="));
-    const token = entry ? entry.slice(COOKIE.length + 1) : "";
+    return entry ? entry.slice(COOKIE.length + 1) : "";
+  }
+  async function session(req) {
+    const token = tokenFromRequest(req);
+    if (!token) return null;
+    if (multiAccount) {
+      const current = await sessionsStore.get(token);
+      return current ? { token, ...current } : null;
+    }
     const current = sessions.get(token);
     if (!current || current.expires <= Date.now()) { sessions.delete(token); return null; }
     return { token, ...current };
@@ -137,7 +148,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
     res.setHeader("Referrer-Policy", "same-origin");
     res.setHeader("X-Frame-Options", "DENY");
     const url = new URL(req.url, "http://localhost");
-    const current = session(req);
+    const current = await session(req);
     try {
       const allowedOrigin = publicOrigin || (secureCookies ? "https://" : "http://") + req.headers.host;
       const originAllowed = req.headers.origin === allowedOrigin || allowedOrigins.includes(req.headers.origin);
@@ -157,7 +168,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         if (!/^application\/json\b/i.test(req.headers["content-type"] || "")) return json(res, 415, { message: "JSON is required." });
       }
       if (url.pathname === "/api/session" && req.method === "GET") {
-        return json(res, 200, current ? { authenticated: true, username: current.username, expiresAt: current.expires } : { authenticated: false });
+        return json(res, 200, current ? { authenticated: true, username: current.username, role: current.role || "admin", environment: current.environment || environment, expiresAt: current.expires } : { authenticated: false });
       }
       if (url.pathname === "/api/login" && req.method === "POST") {
         const client = req.socket.remoteAddress;
@@ -167,6 +178,14 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         limit.count++;
         const value = await body(req);
         if (!value || typeof value.username !== "string" || typeof value.password !== "string" || value.password.length > 1024) return json(res, 400, { message: "Enter your administrator username and password." });
+        if (multiAccount) {
+          const authenticated = await accountsStore.authenticate(value.username, value.password);
+          if (!authenticated) return json(res, 401, { message: "Incorrect username or password, or this account is disabled or expired." });
+          attempts.delete(client);
+          if (current) await sessionsStore.revoke(current.token);
+          const { token, expiresAt } = await sessionsStore.create(authenticated.id, client);
+          return json(res, 200, { authenticated: true, token, username: authenticated.username, role: authenticated.role, environment: authenticated.environment, expiresAt }, { "Set-Cookie": cookie(token, SESSION_TTL / 1000) });
+        }
         const key = await deriveKey(value.password, account.salt, 64);
         if (!timingSafeEqual(key, Buffer.from(account.passwordHash, "hex")) || value.username !== account.username) {
           return json(res, 401, { message: "Incorrect username or password." });
@@ -178,10 +197,14 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         return json(res, 200, { authenticated: true, token, expiresAt: Date.now() + SESSION_TTL }, { "Set-Cookie": cookie(token, SESSION_TTL / 1000) });
       }
       if (url.pathname === "/api/logout" && req.method === "POST") {
-        if (current) sessions.delete(current.token);
+        if (current) { if (multiAccount) await sessionsStore.revoke(current.token); else sessions.delete(current.token); }
         return json(res, 200, { authenticated: false }, { "Set-Cookie": cookie("", 0) });
       }
-      if (url.pathname === "/api/dataset" && req.method === "GET") return json(res, 200, await store.publicData());
+      if (url.pathname === "/api/dataset" && req.method === "GET") {
+        var publicData = await store.publicData();
+        publicData.environment = environment; // non-sensitive; lets the public page show a UAT banner
+        return json(res, 200, publicData);
+      }
       if (url.pathname === "/api/admin/dataset" && req.method === "GET") {
         if (!current) return json(res, 401, { message: "Administrator login required." });
         return json(res, 200, await store.snapshot());
@@ -212,6 +235,43 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         const result = await store.apply("bulkUpsert", { collection: value.collection, mode: value.mode, rows: rows, fingerprint: fingerprintOf(value), sourceFilename: value.filename || null, sheetName: value.sheetName || null }, undefined, current.username);
         return json(res, 200, result);
       }
+      // ------------------------------------------------------------- account management (multi-account mode only)
+      // Any authenticated account in this environment (admin OR stakeholder) may manage other
+      // accounts IN THIS SAME ENVIRONMENT — per the brief, the UAT stakeholder has the same
+      // capability as the environment's own admin, not a cut-down permission set. There is no
+      // cross-environment reach: accountsStore is constructed once per server process against one
+      // specific `environment` value (see the bottom of this file), so a UAT server process can
+      // only ever see/create/disable UAT accounts, never production ones, regardless of role.
+      if (url.pathname === "/api/admin/accounts" && req.method === "GET") {
+        if (!multiAccount) return json(res, 404, { message: "Account management requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        return json(res, 200, await accountsStore.list());
+      }
+      if (url.pathname === "/api/admin/accounts" && req.method === "POST") {
+        if (!multiAccount) return json(res, 404, { message: "Account management requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const value = await body(req);
+        const created = await accountsStore.create({ username: value.username, password: value.password, role: value.role, displayName: value.displayName, createdBy: current.username, expiresAt: value.expiresAt });
+        return json(res, 200, created);
+      }
+      const accountActionMatch = url.pathname.match(/^\/api\/admin\/accounts\/([^/]+)\/(disable|enable|set-password)$/);
+      if (accountActionMatch && req.method === "POST") {
+        if (!multiAccount) return json(res, 404, { message: "Account management requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const [, accountId, action] = accountActionMatch;
+        if (action === "disable") {
+          await accountsStore.disable(accountId);
+          await sessionsStore.revokeAllForAccount(accountId); // a disabled account's existing sessions must stop working immediately
+          return json(res, 200, await accountsStore.get(accountId));
+        }
+        if (action === "enable") { await accountsStore.enable(accountId); return json(res, 200, await accountsStore.get(accountId)); }
+        if (action === "set-password") {
+          const value = await body(req);
+          await accountsStore.setPassword(accountId, value.password);
+          await sessionsStore.revokeAllForAccount(accountId); // force re-login with the new password everywhere
+          return json(res, 200, await accountsStore.get(accountId));
+        }
+      }
       if (url.pathname.startsWith("/api/")) return json(res, 404, { message: "Not found." });
       if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, { message: "Method not allowed." });
       if (url.pathname === "/admin-login.html") return redirect(res, "/admin/login.html");
@@ -241,8 +301,12 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
 }
 
 if (require.main === module) {
+  const usingDatabase = Boolean(process.env.DATABASE_URL);
   const accountPath = path.join(__dirname, ".private", "admin-account.json");
-  if (!process.env.ADMIN_PASSWORD && !fs.existsSync(accountPath)) {
+  // The legacy single-hardcoded-admin requirement only applies when there is no database to hold
+  // real multi-account rows — with DATABASE_URL set, accounts are created via
+  // backend/accounts-bootstrap.js (npm run setup:uat-admin) into the `accounts` table instead.
+  if (!usingDatabase && !process.env.ADMIN_PASSWORD && !fs.existsSync(accountPath)) {
     console.error("Initial administrator missing. Run npm run setup:admin before npm start.");
     process.exit(1);
   }
@@ -251,28 +315,39 @@ if (require.main === module) {
   if (secureCookies && !publicOrigin) throw new Error("Set PUBLIC_ORIGIN to the HTTPS website origin in production.");
   if (publicOrigin && (new URL(publicOrigin).origin !== publicOrigin || (secureCookies && !publicOrigin.startsWith("https://")))) throw new Error("PUBLIC_ORIGIN must be an origin such as https://directory.example.org without a trailing slash.");
   let account;
-  if (process.env.ADMIN_PASSWORD) {
-    if (process.env.ADMIN_PASSWORD.length < 12) throw new Error("ADMIN_PASSWORD must contain at least 12 characters.");
-    const salt = randomBytes(32).toString("hex");
-    account = { username: process.env.ADMIN_USERNAME || "admin", salt, passwordHash: require("node:crypto").scryptSync(process.env.ADMIN_PASSWORD, salt, 64).toString("hex") };
-  } else account = JSON.parse(fs.readFileSync(accountPath, "utf8"));
+  if (!usingDatabase) {
+    if (process.env.ADMIN_PASSWORD) {
+      if (process.env.ADMIN_PASSWORD.length < 12) throw new Error("ADMIN_PASSWORD must contain at least 12 characters.");
+      const salt = randomBytes(32).toString("hex");
+      account = { username: process.env.ADMIN_USERNAME || "admin", salt, passwordHash: require("node:crypto").scryptSync(process.env.ADMIN_PASSWORD, salt, 64).toString("hex") };
+    } else account = JSON.parse(fs.readFileSync(accountPath, "utf8"));
+  }
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
   for (const origin of allowedOrigins) if (new URL(origin).origin !== origin) throw new Error("ALLOWED_ORIGINS entries must be complete origins without a path or trailing slash.");
   const port = Number(process.env.PORT || 8765);
   const host = process.env.HOST || (secureCookies ? "0.0.0.0" : "127.0.0.1");
+  // APP_ENVIRONMENT distinguishes a UAT deployment from production — used for the accounts table's
+  // `environment` column (so a UAT server process can only ever see UAT accounts) and surfaced to
+  // the frontend via /api/session so the admin UI can show a "User Acceptance Testing" banner.
+  const environment = (process.env.APP_ENVIRONMENT || "production").toLowerCase();
+  if (environment !== "production" && environment !== "uat") throw new Error("APP_ENVIRONMENT must be \"production\" or \"uat\" if set.");
   (async () => {
-    let store;
-    if (process.env.DATABASE_URL) {
+    let store, accountsStore, sessionsStore;
+    if (usingDatabase) {
       const { Pool } = require("pg");
       const { createPgDataStore } = require("./db/pg-store");
+      const { createAccountsStore } = require("./accounts-pg");
+      const { createSessionsStore } = require("./sessions-pg");
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       await pool.query("SELECT 1"); // fail fast on a bad connection string instead of on the first request
       store = createPgDataStore(pool);
-      console.log("Using PostgreSQL storage (DATABASE_URL is set).");
+      accountsStore = createAccountsStore(pool, environment);
+      sessionsStore = createSessionsStore(pool, SESSION_TTL);
+      console.log("Using PostgreSQL storage and multi-account auth (DATABASE_URL is set). Environment: " + environment + ".");
     } else {
-      console.log("Using single-file JSON storage (DATA_PATH). Set DATABASE_URL to use PostgreSQL instead.");
+      console.log("Using single-file JSON storage and single-admin auth (DATA_PATH). Set DATABASE_URL to use PostgreSQL + multi-account auth instead.");
     }
-    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store });
+    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment });
     app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));
   })().catch(error => { console.error("Failed to start: " + error.message); process.exit(1); });
 }

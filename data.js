@@ -556,5 +556,6 @@ window.RD_DATA = (function () {
     actors, themeNodes, projectNodes, allNodes, relationships, relationshipTypes,
     relTypeMeta, relTypeLabel,
     regions, sources,
+    environment: "production", // replaced in place by admin/store.js's apply() from the server's response
   };
 })();

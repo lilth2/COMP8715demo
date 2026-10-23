@@ -1506,10 +1506,21 @@
     updateShortlistBadge();
     switchView(state.view);
   }
+  function renderUatBanner() {
+    if (D.environment !== "uat") return;
+    if (document.getElementById("uatBanner")) return;
+    var banner = document.createElement("div");
+    banner.id = "uatBanner";
+    banner.setAttribute("role", "status");
+    banner.style.cssText = "background:#a9720a;color:#fff;text-align:center;padding:7px 12px;font-weight:600;font-size:13px;letter-spacing:.02em;position:relative;z-index:50;";
+    banner.textContent = "USER ACCEPTANCE TESTING — this is an isolated test environment, not production.";
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
   function init() {
     // Default the network filter to every relationship type actually present in the published
     // data (seed types plus any custom ones), not just the static seed map.
     state.netFilters.relTypes = new Set((D.relationshipTypes || []).map(function (t) { return t.id; }));
+    renderUatBanner();
     wireGlobalUI();
     updateShortlistBadge();
     applyTransform();

@@ -14,6 +14,9 @@
     state = value;
     state.audit = state.audit || [];
     state.layout = state.layout || { nodes: {} };
+    // Non-sensitive; lets public pages (app.js) and the admin console show a "User Acceptance
+    // Testing" banner without a separate authenticated call.
+    D.environment = state.environment || D.environment || "production";
     replaceArray(D.actors, state.actors);
     replaceArray(D.projectNodes, state.projects);
     replaceArray(D.themeNodes, state.themes);

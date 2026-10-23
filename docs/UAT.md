@@ -341,25 +341,43 @@ a real browser session, per the gap above.
 (the public, unauthenticated endpoint) returns empty arrays for all three collections. Nothing from
 this import has been published to the UAT public view.
 
-**Why, specifically — this is not a default, it's a deliberate hold per an open item already
-flagged in `docs/EXCEL_IMPORT_REPORT.md`**: every imported project's `evidence_snippet` and every
-relationship's `evidence` field embeds the data preparer's own internal "Supporting evidence" notes
-(Excel column S — e.g. *"Date review: official project page confirms... Not disclosed means no
-explicit project date was located..."*). These fields are rendered **verbatim on the public page**
-(`app.js` prints `node.evidenceSnippet` and `relationship.evidence` directly). This content was
-never reviewed for public-facing suitability, so publishing any of it now would expose unreviewed
-internal methodology notes as if they were public-facing copy — exactly the risk the import report
-flagged and asked for sign-off on, which has not yet been given.
+**Why, specifically — this is not a default, it's a deliberate hold, and the exact scope has now
+been verified field-by-field (see `docs/DATA_PUBLICATION_REVIEW.md` for the full breakdown)**:
+
+- **Organisations (56/56)**: nothing to review — no evidence/notes field exists on an organisation
+  record at all; every `summary` is the same generic boilerplate.
+- **Relationships (92/92)**: nothing to review — every relationship's `evidence` field is built
+  only from organisation name, project name, relationship type, and the spreadsheet's own cited
+  source URL(s). Scanned all 92 for any internal-review language — zero matches.
+- **Projects (16/16)**: **this is the actual, scoped risk**. Every project's `evidence_snippet`
+  mixes public-safe segments (a plain description, dates, funding) together with the data
+  preparer's own internal "Supporting evidence" / "Date review" notes (Excel column S — e.g. *"Date
+  review: official project page confirms... Not disclosed means no explicit project date was
+  located..."*), in the same pipe-separated field. This field is rendered **verbatim on the public
+  page** (`app.js` prints `node.evidenceSnippet` directly). The internal segment was never written
+  for a public reader.
+
+An earlier draft of this document claimed this risk applied to "every relationship" too — that was
+checked and found incorrect; relationships carry no such risk. `docs/DATA_PUBLICATION_REVIEW.md`
+has the full per-project breakdown (how many public-safe vs. internal segments each one has) and
+does not publish or rewrite anything on its own — it only classifies, leaving the actual decision to
+you.
 
 **Explicitly pending your confirmation, listed (not guessed)**:
-1. Whether the Supporting Evidence text in every relationship's `evidence` field and every
-   project's `evidence_snippet` is acceptable to show publicly as-is, needs rewriting into
-   public-facing copy first, or should be stripped from public rendering regardless of review
-   (e.g. show it in Admin only, never on the public page).
-2. The 56 free-text research-theme phrases (Excel column K) are not mapped onto any curated Theme
+1. For each of the 16 projects: publish `evidence_snippet` as-is (internal note goes public
+   verbatim — not recommended), publish with the internal segment stripped/rewritten into
+   public-facing copy, or leave in Draft until someone writes real public copy. Two projects
+   (Hydrogen Utilisation in Industrial Applications; NSW Gas Decarbonisation Roadmap) have almost
+   nothing besides the internal segment, so stripping it would leave them nearly blank — those
+   specifically need new copy, not just a mechanical edit.
+2. Whether organisations and relationships (which have no text-redaction risk at all) should be
+   published even while their connected projects stay in Draft, which would show a public graph
+   with organisation-to-organisation links but missing project nodes — not attempted this round
+   since it wasn't asked for and changes what "complete" looks like on the public site.
+3. The 56 free-text research-theme phrases (Excel column K) are not mapped onto any curated Theme
    node — kept as descriptive text only. No decision needed to keep the current Draft-everything
    state, but relevant if/when a future publish decision is made per-record.
-3. Every organisation's `type` is a placeholder (`industry_partner`) pending manual classification
+4. Every organisation's `type` is a placeholder (`industry_partner`) pending manual classification
    — not a blocker for staying Draft, but worth knowing before a future publish pass.
 
 **What this means for the acceptance test guide (§5)**: the stakeholder's 10–15 minute test task

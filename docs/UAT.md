@@ -66,7 +66,9 @@ npm start
 ```
 
 See `backend/.env.uat.example` for the full list of environment variables a real deployment needs
-(origin/CORS, attachments directory, etc.).
+(origin/CORS, etc.). Feedback screenshots are stored as bytes directly in Postgres, not on the
+server's local disk — this matters on a free-tier host with no persistent disk (e.g. Render's free
+web service), where anything written to the local filesystem is lost on the next restart/redeploy.
 
 ### 2.2 Health check
 

@@ -32,7 +32,7 @@ const COLUMN_ORDER = {
   import_batches: ["id", "collection", "source_filename", "file_fingerprint", "sheet_name", "imported_by", "imported_at", "mode", "row_count", "created_count", "updated_count", "skipped_count", "error_count", "status"],
   import_rows: ["id", "batch_id", "source_row_number", "record_type", "record_id", "outcome", "detail", "raw_row"],
   audit_log: ["id", "timestamp", "actor", "action", "record_type", "record_id", "batch_id", "label", "details", "result"],
-  feedback: ["id", "kind", "title", "description", "repro_steps", "expected_result", "actual_result", "related_page", "related_record_id", "screenshot_path", "submitted_by", "submitted_at", "app_version", "current_page", "request_id", "idempotency_key", "status", "status_updated_at", "status_updated_by"],
+  feedback: ["id", "kind", "title", "description", "repro_steps", "expected_result", "actual_result", "related_page", "related_record_id", "screenshot_data", "screenshot_mime_type", "submitted_by", "submitted_at", "app_version", "current_page", "request_id", "idempotency_key", "status", "status_updated_at", "status_updated_by"],
 };
 
 async function restore(connectionString, snapshotPath, { includeFeedback = false, autoBackupDir } = {}) {
@@ -60,7 +60,9 @@ async function restore(connectionString, snapshotPath, { includeFeedback = false
         const rows = payload.tables[table] || [];
         const columns = COLUMN_ORDER[table];
         for (const row of rows) {
-          const values = columns.map(c => row[c]);
+          // snapshot.js stores feedback.screenshot_data as a base64 string (see its comment); it
+          // must go back in as actual bytes, not a string, for the bytea column to round-trip.
+          const values = columns.map(c => (table === "feedback" && c === "screenshot_data" && row[c]) ? Buffer.from(row[c], "base64") : row[c]);
           const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
           await client.query(`INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders})`, values);
         }

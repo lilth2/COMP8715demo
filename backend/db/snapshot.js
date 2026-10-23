@@ -20,6 +20,13 @@ async function snapshot(connectionString, outDir) {
     const data = {};
     for (const table of SNAPSHOT_TABLES) {
       const result = await pool.query(`SELECT * FROM ${table}`);
+      // pg returns a BYTEA column (feedback.screenshot_data) as a Node Buffer. JSON.stringify on a
+      // Buffer produces {type:"Buffer",data:[...]} — technically round-trippable but needlessly
+      // bloats the snapshot file (one array entry per byte); base64 is far more compact and still
+      // restores exactly, see restore.js.
+      if (table === "feedback") {
+        result.rows.forEach(row => { if (row.screenshot_data) row.screenshot_data = row.screenshot_data.toString("base64"); });
+      }
       data[table] = result.rows;
     }
     const schemaVersion = await pool.query("SELECT version FROM schema_meta WHERE id = 1");

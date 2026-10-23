@@ -30,7 +30,7 @@ function toPublic(row) {
     id: row.id, feedbackNumber: row.feedback_number, kind: row.kind, title: row.title, description: row.description,
     reproSteps: row.repro_steps, expectedResult: row.expected_result, actualResult: row.actual_result,
     relatedPage: row.related_page, relatedRecordId: row.related_record_id,
-    hasScreenshot: Boolean(row.screenshot_path),
+    hasScreenshot: Boolean(row.screenshot_mime_type),
     submittedBy: row.submitted_by, submittedByUsername: row.submitted_by_username, submittedAt: row.submitted_at,
     appVersion: row.app_version, currentPage: row.current_page, requestId: row.request_id,
     status: row.status, statusUpdatedAt: row.status_updated_at, statusUpdatedBy: row.status_updated_by,
@@ -40,10 +40,11 @@ function toPublic(row) {
 function createFeedbackStore(pool) {
   return {
     STATUSES,
-    // `screenshotPath` is a server-assigned relative path under the private attachments
-    // directory (see server.js) — never a client-supplied path, so a submitter cannot read an
-    // arbitrary file off disk by claiming it as their "screenshot".
-    async create({ kind, title, description, reproSteps, expectedResult, actualResult, relatedPage, relatedRecordId, screenshotPath, submittedBy, appVersion, currentPage, requestId, idempotencyKey }) {
+    // Screenshot bytes are stored in Postgres itself (screenshot_data/screenshot_mime_type), not
+    // on the server's local filesystem — a free-tier host has no persistent disk, so anything
+    // written to disk would be lost on the next restart/redeploy. server.js validates size/type
+    // before ever calling this.
+    async create({ kind, title, description, reproSteps, expectedResult, actualResult, relatedPage, relatedRecordId, screenshotData, screenshotMimeType, submittedBy, appVersion, currentPage, requestId, idempotencyKey }) {
       assertKind(kind); assertTitle(title); assertText(description, "description", { required: true });
       assertText(reproSteps, "repro steps"); assertText(expectedResult, "expected result"); assertText(actualResult, "actual result");
       assertText(relatedPage, "related page", { max: 500 }); assertText(relatedRecordId, "related record id", { max: 200 });
@@ -58,9 +59,9 @@ function createFeedbackStore(pool) {
         if (existing.rows[0]) return toPublic(existing.rows[0]);
       }
       const r = await pool.query(
-        `INSERT INTO feedback (kind, title, description, repro_steps, expected_result, actual_result, related_page, related_record_id, screenshot_path, submitted_by, app_version, current_page, request_id, idempotency_key)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-        [kind, title.trim(), description, reproSteps || null, expectedResult || null, actualResult || null, relatedPage || null, relatedRecordId || null, screenshotPath || null, submittedBy, appVersion || null, currentPage || null, requestId || null, idempotencyKey || null]
+        `INSERT INTO feedback (kind, title, description, repro_steps, expected_result, actual_result, related_page, related_record_id, screenshot_data, screenshot_mime_type, submitted_by, app_version, current_page, request_id, idempotency_key)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        [kind, title.trim(), description, reproSteps || null, expectedResult || null, actualResult || null, relatedPage || null, relatedRecordId || null, screenshotData || null, screenshotMimeType || null, submittedBy, appVersion || null, currentPage || null, requestId || null, idempotencyKey || null]
       );
       const row = r.rows[0];
       const submitter = await pool.query("SELECT username FROM accounts WHERE id = $1", [submittedBy]);
@@ -90,12 +91,12 @@ function createFeedbackStore(pool) {
     },
     // Internal use only (serving the actual attachment bytes after the visibility check) — never
     // returned to a client as JSON, unlike get()/list(), which only expose hasScreenshot.
-    async getScreenshotPath(account, id) {
-      const r = await pool.query("SELECT submitted_by, screenshot_path FROM feedback WHERE id = $1", [id]);
+    async getScreenshot(account, id) {
+      const r = await pool.query("SELECT submitted_by, screenshot_data, screenshot_mime_type FROM feedback WHERE id = $1", [id]);
       const row = r.rows[0];
-      if (!row || !row.screenshot_path) return null;
+      if (!row || !row.screenshot_mime_type) return null;
       if (!canSeeAll(account.role) && row.submitted_by !== account.id) throw Object.assign(new Error("You can only view your own feedback."), { status: 403 });
-      return row.screenshot_path;
+      return { data: row.screenshot_data, mimeType: row.screenshot_mime_type };
     },
     // Only an account with full visibility (admin/stakeholder) may triage — a submitter cannot
     // close or re-route their own report, matching "普通测试角色只能访问自己的反馈" (view only).

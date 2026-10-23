@@ -237,7 +237,13 @@ CREATE TABLE IF NOT EXISTS feedback (
   actual_result TEXT,
   related_page TEXT,
   related_record_id TEXT,
-  screenshot_path TEXT,
+  -- Stored as bytes in the database itself, not on the server's local filesystem: a free-tier
+  -- host (e.g. Render's free web service) has no persistent disk, so anything written to disk
+  -- is gone on the next restart/redeploy/scale event. Postgres is the only thing in this
+  -- deployment guaranteed to survive that. Capped at 5MB by the same MAX_SCREENSHOT_BYTES check
+  -- server.js already applied before this column existed.
+  screenshot_data BYTEA,
+  screenshot_mime_type TEXT,
   submitted_by UUID NOT NULL REFERENCES accounts(id),
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   app_version TEXT,
@@ -248,6 +254,10 @@ CREATE TABLE IF NOT EXISTS feedback (
   status_updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   status_updated_by TEXT
 );
+-- Idempotent for a database migrated before screenshots moved from local disk into Postgres.
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS screenshot_data BYTEA;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS screenshot_mime_type TEXT;
+ALTER TABLE feedback DROP COLUMN IF EXISTS screenshot_path;
 CREATE INDEX IF NOT EXISTS idx_feedback_submitted_by ON feedback (submitted_by);
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback (status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_idempotency ON feedback (submitted_by, idempotency_key)

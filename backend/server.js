@@ -64,7 +64,7 @@ function findPriorImport(snapshot, fingerprint) {
   return match ? { importedAt: match.importedAt, importedBy: match.importedBy, createdCount: match.createdCount, updatedCount: match.updatedCount } : null;
 }
 
-function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production", feedbackStore, attachmentsDir, dbHealthCheck } = {}) {
+function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production", feedbackStore, dbHealthCheck } = {}) {
   // Two mutually-exclusive auth modes:
   //  - Legacy single-admin (accountsStore not given): one hardcoded account, in-memory sessions
   //    Map, exactly as before — unchanged behaviour for the existing JSON-file deployment story.
@@ -336,22 +336,20 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
         if (!current) return json(res, 401, { message: "Login required." });
         const value = await body(req);
-        let screenshotPath = null;
+        let screenshotData = null, screenshotMimeType = null;
         if (value.screenshotBase64) {
           const mime = value.screenshotMimeType;
           if (!ALLOWED_SCREENSHOT_TYPES[mime]) return json(res, 415, { message: "Screenshot must be PNG, JPEG or WebP." });
           let buf;
           try { buf = Buffer.from(value.screenshotBase64, "base64"); } catch { return json(res, 400, { message: "Invalid screenshot encoding." }); }
           if (buf.length > MAX_SCREENSHOT_BYTES) return json(res, 413, { message: "Screenshot is too large (max 5 MB)." });
-          const filename = randomBytes(16).toString("hex") + "." + ALLOWED_SCREENSHOT_TYPES[mime];
-          fs.mkdirSync(attachmentsDir, { recursive: true, mode: 0o700 });
-          fs.writeFileSync(path.join(attachmentsDir, filename), buf, { mode: 0o600 });
-          screenshotPath = filename;
+          screenshotData = buf;
+          screenshotMimeType = mime;
         }
         const created = await feedbackStore.create({
           kind: value.kind, title: value.title, description: value.description, reproSteps: value.reproSteps,
           expectedResult: value.expectedResult, actualResult: value.actualResult, relatedPage: value.relatedPage,
-          relatedRecordId: value.relatedRecordId, screenshotPath, submittedBy: current.accountId,
+          relatedRecordId: value.relatedRecordId, screenshotData, screenshotMimeType, submittedBy: current.accountId,
           appVersion: value.appVersion, currentPage: value.currentPage, requestId: value.requestId, idempotencyKey: value.idempotencyKey,
         });
         return json(res, 200, created);
@@ -376,14 +374,13 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
       if (feedbackScreenshotMatch && req.method === "GET") {
         if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
         if (!current) return json(res, 401, { message: "Login required." });
-        // getScreenshotPath() enforces the same ownership/role visibility rule as get()/list();
-        // the file itself lives under attachmentsDir, never under a statically-served directory.
-        const filename = await feedbackStore.getScreenshotPath({ id: current.accountId, role: current.role }, feedbackScreenshotMatch[1]);
-        if (!filename) return json(res, 404, { message: "No screenshot for this feedback item." });
-        const ext = path.extname(filename).slice(1);
-        const contentType = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" }[ext] || "application/octet-stream";
-        res.writeHead(200, { "Content-Type": contentType });
-        return res.end(await fs.promises.readFile(path.join(attachmentsDir, filename)));
+        // getScreenshot() enforces the same ownership/role visibility rule as get()/list(); the
+        // bytes live in Postgres itself (not the server's local filesystem, which a free-tier
+        // host does not persist across restarts/redeploys).
+        const screenshot = await feedbackStore.getScreenshot({ id: current.accountId, role: current.role }, feedbackScreenshotMatch[1]);
+        if (!screenshot) return json(res, 404, { message: "No screenshot for this feedback item." });
+        res.writeHead(200, { "Content-Type": screenshot.mimeType });
+        return res.end(screenshot.data);
       }
       if (url.pathname === "/api/feedback/export.csv" && req.method === "GET") {
         if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
@@ -461,7 +458,6 @@ if (require.main === module) {
   if (environment !== "production" && environment !== "uat") throw new Error("APP_ENVIRONMENT must be \"production\" or \"uat\" if set.");
   (async () => {
     let store, accountsStore, sessionsStore, feedbackStore, dbHealthCheck;
-    const attachmentsDir = process.env.ATTACHMENTS_DIR || path.join(__dirname, ".private", "attachments");
     if (usingDatabase) {
       const { Pool } = require("pg");
       const { createPgDataStore } = require("./db/pg-store");
@@ -485,7 +481,7 @@ if (require.main === module) {
     } else {
       console.log("Using single-file JSON storage and single-admin auth (DATA_PATH). Set DATABASE_URL to use PostgreSQL + multi-account auth instead.");
     }
-    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment, feedbackStore, attachmentsDir, dbHealthCheck });
+    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment, feedbackStore, dbHealthCheck });
     app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));
   })().catch(error => { console.error("Failed to start: " + error.message); process.exit(1); });
 }

@@ -146,9 +146,10 @@ npm run setup:accounts -- --admin-username admin --stakeholder-username jane.sta
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL 连接字符串，设置后自动启用此模式 |
 | `APP_ENVIRONMENT` | `production` 或 `uat`；决定账号查询范围和是否显示 UAT 横幅 |
-| `ATTACHMENTS_DIR` | 反馈截图私有存储目录，默认 `backend/.private/attachments` |
 
-`ADMIN_USERNAME` / `ADMIN_PASSWORD` / `DATA_PATH` 在此模式下被忽略。
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` / `DATA_PATH` 在此模式下被忽略。反馈截图作为字节直接存入
+Postgres（`feedback.screenshot_data`），不写入服务器本地磁盘——像 Render 免费套餐的 Web 服务那样
+没有持久磁盘的平台，每次重启/重新部署都会丢失本地文件，数据库是这套部署里唯一能跨重启保留数据的地方。
 
 ### 7.6 从旧的 JSON 文件迁移到 PostgreSQL（如果之前已用单文件模式积累了数据）
 

@@ -70,4 +70,20 @@ test("snapshot + restore: recovers deleted records, preserves feedback by defaul
 
   const backupFiles = fs.readdirSync(snapshotDir).filter(f => f.startsWith("uat-snapshot-"));
   assert.ok(backupFiles.length >= 2, "a safety backup of the pre-restore state was taken automatically, in addition to the original snapshot");
+
+  // Feedback screenshots are stored as raw bytes (BYTEA), which snapshot.js base64-encodes for
+  // the JSON file and restore.js must decode back to a real Buffer before inserting — a lossy
+  // round-trip here would silently corrupt every screenshot restored from a backup.
+  const pngBytes = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+  await pool.query(
+    "INSERT INTO feedback (id, kind, title, description, submitted_by, status, screenshot_data, screenshot_mime_type) VALUES ('11111111-1111-1111-1111-111111111111', 'bug', 'With screenshot', 'desc', $1, 'New', $2, 'image/png')",
+    [account.id, pngBytes]
+  );
+  const screenshotSnapshotPath = await snapshot(connectionString, snapshotDir);
+  await pool.query("DELETE FROM feedback WHERE id = '11111111-1111-1111-1111-111111111111'");
+  await restore(connectionString, screenshotSnapshotPath, { autoBackupDir: snapshotDir, includeFeedback: true });
+  const restoredScreenshot = await pool.query("SELECT screenshot_data, screenshot_mime_type FROM feedback WHERE id = '11111111-1111-1111-1111-111111111111'");
+  assert.equal(restoredScreenshot.rows.length, 1);
+  assert.ok(Buffer.from(restoredScreenshot.rows[0].screenshot_data).equals(pngBytes), "the screenshot's exact bytes survive a snapshot + restore round-trip");
+  assert.equal(restoredScreenshot.rows[0].screenshot_mime_type, "image/png");
 });

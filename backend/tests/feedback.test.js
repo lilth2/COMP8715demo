@@ -42,16 +42,15 @@ test("Feedback tracker: submission, idempotent double-submit, role-scoped visibi
   const accountsStore = createAccountsStore(pool, "uat");
   const sessionsStore = createSessionsStore(pool, 8 * 60 * 60 * 1000);
   const feedbackStore = createFeedbackStore(pool);
-  const attachmentsDir = fs.mkdtempSync(path.join(os.tmpdir(), "rd-attachments-"));
 
   await accountsStore.create({ username: "owner", password: "Owner-password-2026!", role: "admin", createdBy: "test" });
   await accountsStore.create({ username: "stakeholder1", password: "Stakeholder-password-2026!", role: "stakeholder", createdBy: "test" });
 
-  const app = createApp({ secureCookies: false, allowedOrigins: ["http://test.local"], store, accountsStore, sessionsStore, environment: "uat", feedbackStore, attachmentsDir });
+  const app = createApp({ secureCookies: false, allowedOrigins: ["http://test.local"], store, accountsStore, sessionsStore, environment: "uat", feedbackStore });
   await new Promise(resolve => app.listen(0, "127.0.0.1", resolve));
   const base = "http://127.0.0.1:" + app.address().port;
   t.after(() => new Promise(resolve => app.close(resolve)));
-  t.after(async () => { await pool.end(); await pg.stop(); fs.rmSync(dataDir, { recursive: true, force: true }); fs.rmSync(attachmentsDir, { recursive: true, force: true }); });
+  t.after(async () => { await pool.end(); await pg.stop(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
   const post = (route, value, token) => fetch(base + route, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://test.local", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: JSON.stringify(value) });
   const get = (route, token) => fetch(base + route, { headers: { Origin: "http://test.local", ...(token ? { Authorization: "Bearer " + token } : {}) } });
@@ -127,21 +126,18 @@ test("Feedback tracker: submission, idempotent double-submit, role-scoped visibi
       screenshotBase64: pngBytes.toString("base64"), screenshotMimeType: "image/png",
     }, stakeholderToken);
     const body = await res.json();
-    assert.equal(body.hasScreenshot, true, "the API response reports a screenshot exists but never the file path");
-    assert.equal(JSON.stringify(body).includes(".png"), false, "no raw filename/path leaks into the JSON response");
+    assert.equal(body.hasScreenshot, true, "the API response reports a screenshot exists but never a file path");
+    assert.equal(JSON.stringify(body).includes(".png"), false, "no raw filename/path leaks into the JSON response (the bytes live in Postgres, not on disk)");
 
     const screenshotRes = await get("/api/feedback/" + body.id + "/screenshot", stakeholderToken);
     assert.equal(screenshotRes.status, 200);
     assert.equal(screenshotRes.headers.get("content-type"), "image/png");
+    const returnedBytes = Buffer.from(await screenshotRes.arrayBuffer());
+    assert.ok(returnedBytes.equals(pngBytes), "the exact uploaded bytes round-trip through the screenshot_data column");
 
     // Not reachable without authentication at all.
     const anonRes = await get("/api/feedback/" + body.id + "/screenshot");
     assert.equal(anonRes.status, 401);
-
-    // Confirm the file is not sitting under any statically-served PUBLIC_FILES/ADMIN_FILES path —
-    // i.e. it cannot be fetched by guessing a /admin/... or root-level URL.
-    const guessRes = await fetch(base + "/attachments/" + fs.readdirSync(attachmentsDir)[0]);
-    assert.equal(guessRes.status, 404, "the attachments directory is not served as a static path at all");
   });
 
   await t.test("CSV export is available to full-visibility accounts and contains the submitted items", async () => {

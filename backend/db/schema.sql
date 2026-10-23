@@ -218,8 +218,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log ("timestamp" DESC);
 
 -- ------------------------------------------------------------------------------- feedback
+CREATE SEQUENCE IF NOT EXISTS feedback_number_seq;
+
 CREATE TABLE IF NOT EXISTS feedback (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  feedback_number INTEGER NOT NULL DEFAULT nextval('feedback_number_seq') UNIQUE,
   kind TEXT NOT NULL CHECK (kind IN ('bug', 'suggestion')),
   title TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 200),
   description TEXT NOT NULL,
@@ -243,6 +246,18 @@ CREATE INDEX IF NOT EXISTS idx_feedback_submitted_by ON feedback (submitted_by);
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback (status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_idempotency ON feedback (submitted_by, idempotency_key)
   WHERE idempotency_key IS NOT NULL;
+
+-- Every status change (and the free-text note that came with it) is kept, not just the feedback
+-- row's current status, so "处理备注的修改记录" (a change log for status/handling notes) is real.
+CREATE TABLE IF NOT EXISTS feedback_status_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  feedback_id UUID NOT NULL REFERENCES feedback(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK (status IN ('New', 'Investigating', 'Fixed', 'Ready for retest', 'Closed')),
+  note TEXT,
+  changed_by TEXT NOT NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_status_history_feedback ON feedback_status_history (feedback_id, changed_at);
 
 INSERT INTO schema_meta (id, version) VALUES (1, 1)
   ON CONFLICT (id) DO NOTHING;

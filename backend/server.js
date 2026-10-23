@@ -9,7 +9,10 @@ const { promisify } = require("node:util");
 const deriveKey = promisify(scrypt);
 const { createDataStore } = require("./server-data");
 const { openUpload, rowsFromMapping } = require("./import/plan-from-file");
+const { makeIdempotencyKey } = require("./feedback-pg");
 const ROOT = path.resolve(__dirname, "..");
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+const ALLOWED_SCREENSHOT_TYPES = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const SESSION_TTL = 8 * 60 * 60 * 1000;
 const LOGIN_WINDOW = 15 * 60 * 1000;
 const COOKIE = "rd_admin_session";
@@ -61,7 +64,7 @@ function findPriorImport(snapshot, fingerprint) {
   return match ? { importedAt: match.importedAt, importedBy: match.importedBy, createdCount: match.createdCount, updatedCount: match.updatedCount } : null;
 }
 
-function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production" } = {}) {
+function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production", feedbackStore, attachmentsDir } = {}) {
   // Two mutually-exclusive auth modes:
   //  - Legacy single-admin (accountsStore not given): one hardcoded account, in-memory sessions
   //    Map, exactly as before — unchanged behaviour for the existing JSON-file deployment story.
@@ -129,6 +132,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
   function bodyLimitFor(pathname) {
     if (pathname === "/api/admin/action") return 2 * 1024 * 1024;
     if (IMPORT_PATHS.has(pathname)) return 21 * 1024 * 1024; // base64 of a 15MB file is ~20MB
+    if (pathname === "/api/feedback") return 7 * 1024 * 1024; // base64 of a 5MB screenshot is ~6.7MB
     return 8192;
   }
   async function body(req) {
@@ -282,6 +286,77 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
           return json(res, 200, target);
         }
       }
+      // --------------------------------------------------------------------- feedback (multi-account mode only)
+      // "Report an issue / Suggest an improvement" — any authenticated account (admin or
+      // stakeholder) may submit; visibility and triage rights are enforced inside feedbackStore
+      // itself (an ordinary submitter only ever sees their own, admin/stakeholder see everything
+      // in this environment), never by a client-side check.
+      if (url.pathname === "/api/feedback" && req.method === "GET") {
+        if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const items = await feedbackStore.list({ id: current.accountId, role: current.role }, { status: url.searchParams.get("status") || undefined, kind: url.searchParams.get("kind") || undefined });
+        return json(res, 200, items);
+      }
+      if (url.pathname === "/api/feedback" && req.method === "POST") {
+        if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const value = await body(req);
+        let screenshotPath = null;
+        if (value.screenshotBase64) {
+          const mime = value.screenshotMimeType;
+          if (!ALLOWED_SCREENSHOT_TYPES[mime]) return json(res, 415, { message: "Screenshot must be PNG, JPEG or WebP." });
+          let buf;
+          try { buf = Buffer.from(value.screenshotBase64, "base64"); } catch { return json(res, 400, { message: "Invalid screenshot encoding." }); }
+          if (buf.length > MAX_SCREENSHOT_BYTES) return json(res, 413, { message: "Screenshot is too large (max 5 MB)." });
+          const filename = randomBytes(16).toString("hex") + "." + ALLOWED_SCREENSHOT_TYPES[mime];
+          fs.mkdirSync(attachmentsDir, { recursive: true, mode: 0o700 });
+          fs.writeFileSync(path.join(attachmentsDir, filename), buf, { mode: 0o600 });
+          screenshotPath = filename;
+        }
+        const created = await feedbackStore.create({
+          kind: value.kind, title: value.title, description: value.description, reproSteps: value.reproSteps,
+          expectedResult: value.expectedResult, actualResult: value.actualResult, relatedPage: value.relatedPage,
+          relatedRecordId: value.relatedRecordId, screenshotPath, submittedBy: current.accountId,
+          appVersion: value.appVersion, currentPage: value.currentPage, requestId: value.requestId, idempotencyKey: value.idempotencyKey,
+        });
+        return json(res, 200, created);
+      }
+      const feedbackStatusMatch = url.pathname.match(/^\/api\/feedback\/([^/]+)\/status$/);
+      if (feedbackStatusMatch && req.method === "POST") {
+        if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const value = await body(req);
+        const updated = await feedbackStore.setStatus({ id: current.accountId, role: current.role, username: current.username }, feedbackStatusMatch[1], value.status, value.note);
+        return json(res, 200, updated);
+      }
+      const feedbackHistoryMatch = url.pathname.match(/^\/api\/feedback\/([^/]+)\/history$/);
+      if (feedbackHistoryMatch && req.method === "GET") {
+        if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const history = await feedbackStore.history({ id: current.accountId, role: current.role }, feedbackHistoryMatch[1]);
+        if (!history) return json(res, 404, { message: "Feedback not found." });
+        return json(res, 200, history);
+      }
+      const feedbackScreenshotMatch = url.pathname.match(/^\/api\/feedback\/([^/]+)\/screenshot$/);
+      if (feedbackScreenshotMatch && req.method === "GET") {
+        if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        // getScreenshotPath() enforces the same ownership/role visibility rule as get()/list();
+        // the file itself lives under attachmentsDir, never under a statically-served directory.
+        const filename = await feedbackStore.getScreenshotPath({ id: current.accountId, role: current.role }, feedbackScreenshotMatch[1]);
+        if (!filename) return json(res, 404, { message: "No screenshot for this feedback item." });
+        const ext = path.extname(filename).slice(1);
+        const contentType = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" }[ext] || "application/octet-stream";
+        res.writeHead(200, { "Content-Type": contentType });
+        return res.end(await fs.promises.readFile(path.join(attachmentsDir, filename)));
+      }
+      if (url.pathname === "/api/feedback/export.csv" && req.method === "GET") {
+        if (!feedbackStore) return json(res, 404, { message: "Feedback requires Postgres (DATABASE_URL)." });
+        if (!current) return json(res, 401, { message: "Login required." });
+        const csv = await feedbackStore.exportCsv({ id: current.accountId, role: current.role });
+        res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=\"feedback-export.csv\"" });
+        return res.end(csv);
+      }
       if (url.pathname.startsWith("/api/")) return json(res, 404, { message: "Not found." });
       if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, { message: "Method not allowed." });
       if (url.pathname === "/admin-login.html") return redirect(res, "/admin/login.html");
@@ -342,22 +417,25 @@ if (require.main === module) {
   const environment = (process.env.APP_ENVIRONMENT || "production").toLowerCase();
   if (environment !== "production" && environment !== "uat") throw new Error("APP_ENVIRONMENT must be \"production\" or \"uat\" if set.");
   (async () => {
-    let store, accountsStore, sessionsStore;
+    let store, accountsStore, sessionsStore, feedbackStore;
+    const attachmentsDir = process.env.ATTACHMENTS_DIR || path.join(__dirname, ".private", "attachments");
     if (usingDatabase) {
       const { Pool } = require("pg");
       const { createPgDataStore } = require("./db/pg-store");
       const { createAccountsStore } = require("./accounts-pg");
       const { createSessionsStore } = require("./sessions-pg");
+      const { createFeedbackStore } = require("./feedback-pg");
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       await pool.query("SELECT 1"); // fail fast on a bad connection string instead of on the first request
       store = createPgDataStore(pool);
       accountsStore = createAccountsStore(pool, environment);
       sessionsStore = createSessionsStore(pool, SESSION_TTL);
+      feedbackStore = createFeedbackStore(pool);
       console.log("Using PostgreSQL storage and multi-account auth (DATABASE_URL is set). Environment: " + environment + ".");
     } else {
       console.log("Using single-file JSON storage and single-admin auth (DATA_PATH). Set DATABASE_URL to use PostgreSQL + multi-account auth instead.");
     }
-    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment });
+    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment, feedbackStore, attachmentsDir });
     app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));
   })().catch(error => { console.error("Failed to start: " + error.message); process.exit(1); });
 }

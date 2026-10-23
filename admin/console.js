@@ -253,6 +253,7 @@
     if (page === "network" && Editor) Editor.activate();
     if (page === "bulk-import" && window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.activate();
     if (page === "accounts" && window.RD_ACCOUNTS) window.RD_ACCOUNTS.render();
+    if (page === "feedback" && window.RD_FEEDBACK) window.RD_FEEDBACK.render();
   }
 
   function renderMetrics(snapshot) {
@@ -719,6 +720,7 @@
       if (!session.authenticated) { window.location.replace("login.html"); return false; }
       var roleLabel = session.role === "stakeholder" ? "Stakeholder (UAT)" : (window.RD_ADMIN_AUTH.isDemo() ? "Demo administrator" : "Administrator");
       $("#adminIdentity").textContent = session.username + " · " + roleLabel;
+      if (window.RD_FEEDBACK) window.RD_FEEDBACK.setRole(session.role || "admin");
       // A UAT deployment is visually distinct at all times, not just on the login page, so no
       // admin action can be mistaken for happening against production.
       if (session.environment === "uat") {
@@ -763,6 +765,7 @@
     if (Editor) Editor.mount(window.RD_ADMIN_UI);
     if (window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.wireEvents();
     if (window.RD_ACCOUNTS) { window.RD_ACCOUNTS.wireEvents(); window.RD_ACCOUNTS.render(); }
+    if (window.RD_FEEDBACK) { window.RD_FEEDBACK.wireEvents(); window.RD_FEEDBACK.render(); }
     renderAll();
     document.body.classList.remove("auth-pending");
     window.setInterval(requireLogin, 60000);

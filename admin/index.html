@@ -52,7 +52,7 @@
 <body class="auth-pending">
   <header class="topbar">
     <div class="brand"><span class="brand-mark">◆</span><span>Directory Admin Console<small>Australian R&amp;D Intelligent Directory</small></span></div>
-    <div class="top-actions"><span class="admin-badge" id="adminIdentity">Administrator</span><a class="top-link" href="../index.html">View public directory ↗</a><button class="btn small" id="logoutBtn" type="button">Sign out</button></div>
+    <div class="top-actions"><button class="btn small" id="reportIssueBtn" type="button" hidden>Report an issue</button><span class="admin-badge" id="adminIdentity">Administrator</span><a class="top-link" href="../index.html">View public directory ↗</a><button class="btn small" id="logoutBtn" type="button">Sign out</button></div>
   </header>
   <div class="shell">
     <aside class="sidebar">
@@ -65,6 +65,7 @@
       <button class="nav-btn" data-page="themes">Research themes <span class="nav-count" id="themeNavCount">0</span></button>
       <button class="nav-btn" data-page="relationships">Relationships <span class="nav-count" id="relNavCount">0</span></button>
       <button class="nav-btn" data-page="sources">Sources <span class="nav-count" id="sourceNavCount">0</span></button>
+      <button class="nav-btn" id="feedbackNavBtn" data-page="feedback" hidden>Feedback <span class="nav-count" id="feedbackNavCount">0</span></button>
       <button class="nav-btn" id="accountsNavBtn" data-page="accounts" hidden>Accounts</button>
       <button class="nav-btn" data-page="history">Change history</button>
       <div class="side-note"><strong>Administrator workspace</strong>Changes are saved to the server and recorded in change history.</div>
@@ -195,6 +196,14 @@
       <section class="page" id="page-sources">
         <div class="page-head"><div><h1>Data sources</h1><p>Document the source categories used to support directory records and AI answers.</p></div><button class="btn primary" id="addSourceBtn">+ Add source</button></div>
         <div class="panel"><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Source</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="sourceTableBody"></tbody></table></div></div></div>
+      </section>
+
+      <section class="page" id="page-feedback">
+        <div class="page-head"><div><h1>Feedback</h1><p id="feedbackPageDesc">Bugs and suggestions reported from this console.</p></div><div class="actions"><button class="btn" id="feedbackExportBtn" hidden>Export CSV</button><button class="btn primary" id="feedbackReportBtn2">+ Report an issue</button></div></div>
+        <div class="panel"><div class="panel-body">
+          <div class="toolbar"><select class="select" id="feedbackStatusFilter"><option value="">All statuses</option><option>New</option><option>Investigating</option><option>Fixed</option><option>Ready for retest</option><option>Closed</option></select><select class="select" id="feedbackKindFilter"><option value="">Bug and suggestion</option><option value="bug">Bug</option><option value="suggestion">Suggestion</option></select></div>
+          <div class="table-wrap"><table><thead><tr><th>#</th><th>Kind</th><th>Title</th><th>Submitted by</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody id="feedbackTableBody"></tbody></table></div>
+        </div></div>
       </section>
 
       <section class="page" id="page-accounts">
@@ -344,6 +353,40 @@
     </form>
   </dialog>
 
+  <dialog id="feedbackDialog">
+    <form id="feedbackForm">
+      <div class="modal-head"><h2>Report an issue / Suggest an improvement</h2><button class="close" type="button" data-close="feedbackDialog">×</button></div>
+      <div class="form-body"><div class="form-grid">
+        <div class="field"><label for="feedbackKind">Type *</label><select id="feedbackKind"><option value="bug">Bug</option><option value="suggestion">Suggestion</option></select></div>
+        <div class="field full"><label for="feedbackTitle">Title *</label><input id="feedbackTitle" required maxlength="200" /></div>
+        <div class="field full"><label for="feedbackDescription">Description *</label><textarea id="feedbackDescription" required></textarea></div>
+        <div class="field full"><label for="feedbackRepro">Steps to reproduce (for a bug)</label><textarea id="feedbackRepro"></textarea></div>
+        <div class="field"><label for="feedbackExpected">Expected result</label><input id="feedbackExpected" /></div>
+        <div class="field"><label for="feedbackActual">Actual result</label><input id="feedbackActual" /></div>
+        <div class="field"><label for="feedbackRelatedRecord">Related record ID (optional)</label><input id="feedbackRelatedRecord" /></div>
+        <div class="field full"><label for="feedbackScreenshot">Screenshot (optional, PNG/JPEG/WebP, max 5 MB)</label><input id="feedbackScreenshot" type="file" accept="image/png,image/jpeg,image/webp" /></div>
+      </div></div>
+      <div class="form-actions"><button class="btn" type="button" data-close="feedbackDialog">Cancel</button><button class="btn teal" type="submit">Submit</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="feedbackDetailDialog">
+    <div class="modal-head"><h2 id="feedbackDetailTitle">Feedback</h2><button class="close" type="button" data-close="feedbackDetailDialog">×</button></div>
+    <div class="form-body">
+      <div id="feedbackDetailBody" style="white-space:pre-wrap"></div>
+      <div id="feedbackScreenshotWrap" hidden style="margin-top:12px"><img id="feedbackScreenshotImg" style="max-width:100%;border-radius:8px;border:1px solid var(--line)" /></div>
+      <div id="feedbackTriage" hidden style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+        <div class="form-grid">
+          <div class="field"><label for="feedbackNewStatus">Status</label><select id="feedbackNewStatus"><option>New</option><option>Investigating</option><option>Fixed</option><option>Ready for retest</option><option>Closed</option></select></div>
+          <div class="field full"><label for="feedbackStatusNote">Note</label><input id="feedbackStatusNote" placeholder="Optional note about this status change" /></div>
+        </div>
+        <button class="btn teal" id="feedbackSaveStatusBtn" type="button" style="margin-top:8px">Update status</button>
+        <h4 style="margin:16px 0 6px">History</h4>
+        <div id="feedbackHistoryList" class="audit-list"></div>
+      </div>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" hidden></div>
   <script src="../site-config.js"></script>
   <script src="auth.js"></script>
@@ -352,6 +395,7 @@
   <script src="demo-store.js"></script>
   <script src="store.js"></script>
   <script src="accounts.js"></script>
+  <script src="feedback.js"></script>
   <script src="network-editor.js"></script>
   <script src="bulk-import.js"></script>
   <script src="console.js"></script>

@@ -111,8 +111,10 @@ test("Feedback tracker: submission, idempotent double-submit, role-scoped visibi
     const historyRes = await get("/api/feedback/" + feedbackId + "/history", ownerToken);
     const history = await historyRes.json();
     assert.equal(history.length, 2, "both the initial 'New' entry and the status change are recorded");
+    assert.equal(history[0].changed_by, "stakeholder1", "the initial 'New' history entry shows the submitter's username, not their raw account ID");
     assert.equal(history[1].status, "Investigating");
     assert.equal(history[1].note, "Looking into it.");
+    assert.equal(history[1].changed_by, "owner");
   });
 
   await t.test("a screenshot can be uploaded, is not publicly reachable, but is served to an authorized viewer", async () => {

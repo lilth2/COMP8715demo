@@ -63,7 +63,8 @@ function createFeedbackStore(pool) {
         [kind, title.trim(), description, reproSteps || null, expectedResult || null, actualResult || null, relatedPage || null, relatedRecordId || null, screenshotPath || null, submittedBy, appVersion || null, currentPage || null, requestId || null, idempotencyKey || null]
       );
       const row = r.rows[0];
-      await pool.query("INSERT INTO feedback_status_history (feedback_id, status, changed_by) VALUES ($1,$2,$3)", [row.id, "New", submittedBy]);
+      const submitter = await pool.query("SELECT username FROM accounts WHERE id = $1", [submittedBy]);
+      await pool.query("INSERT INTO feedback_status_history (feedback_id, status, changed_by) VALUES ($1,$2,$3)", [row.id, "New", (submitter.rows[0] && submitter.rows[0].username) || submittedBy]);
       return toPublic(row);
     },
     // `account` = { id, role }. Returns only what that account is allowed to see.

@@ -167,6 +167,10 @@ async function main() {
   console.log("File fingerprint: " + fingerprint);
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // See backend/server.js for why a long-lived Pool needs this: an idle client losing its
+  // connection (common on a serverless/pooled Postgres endpoint like Neon, which can recycle idle
+  // connections) emits an unhandled, fatal 'error' event if nothing is listening for it.
+  pool.on("error", error => console.error("Postgres pool error (connection dropped, pool will recover automatically): " + error.message));
   const store = createPgDataStore(pool);
   const vm = require("node:vm");
   const dataContext = { window: {} };
@@ -220,4 +224,11 @@ async function main() {
   }
 }
 
-main().catch(error => { console.error("FAILED: " + error.message); process.exit(1); });
+main().catch(error => {
+  // Logging only error.message previously hid the actual cause entirely whenever a rejection
+  // carried no message (e.g. a dropped-connection error from a serverless Postgres pooler during
+  // the finally block's pool.end() call) — the real exception needs to be visible for anyone
+  // operating this script against a real, network-attached database, not just a local one.
+  console.error("FAILED: " + (error && (error.stack || error.message) || String(error)));
+  process.exitCode = 1;
+});

@@ -468,6 +468,14 @@
     .metric-grid{ grid-template-columns:repeat(2,1fr); }
     .quick-grid{ grid-template-columns:1fr; }
     .demo-badge{ display:none; }
+    /* The brand title is a single nowrap line sized for desktop; on a narrow phone viewport it
+       is wider than the screen and forces the whole page to scroll horizontally. Let it shrink
+       and wrap instead of overflowing. */
+    .topbar{ flex-wrap:wrap; row-gap:6px; }
+    .brand{ flex:1 1 auto; min-width:0; }
+    .brand-word{ min-width:0; }
+    .brand-word .title{ white-space:normal; font-size:15px; line-height:1.2; }
+    .searchbar{ order:3; flex-basis:100%; }
   }
 </style>
 </head>

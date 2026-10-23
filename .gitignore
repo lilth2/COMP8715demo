@@ -3,3 +3,13 @@ backend/.private/
 node_modules/
 *.log
 .env
+
+# Real source data files must never be committed (per the data-handling rules in
+# docs/EXCEL_IMPORT_REPORT.md) -- the actual source lives outside this repo entirely, but this is
+# a backstop against an accidental `git add` of a working copy.
+*.xlsx
+*.xls
+*.csv
+!backend/tests/**/*.csv
+dataset.json
+dataset.json.*

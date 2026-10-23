@@ -128,6 +128,21 @@ async function writeDiff(client, before, after, versions) {
     }
   }
 
+  // relationship_types must be written (new types inserted) BEFORE relationships, and deleted
+  // (removed types) AFTER relationships — relationships.type is a foreign key into this table, so
+  // a bulk import that creates a brand-new freeform type and a relationship using it in the same
+  // commit would otherwise violate the FK constraint on insert.
+  const beforeTypes = byId(before.relationshipTypes || []), afterTypes = byId(after.relationshipTypes || []);
+  for (const id of Object.keys(afterTypes)) {
+    const t = afterTypes[id];
+    if (beforeTypes[id] && JSON.stringify(beforeTypes[id]) === JSON.stringify(t)) continue;
+    await client.query(
+      `INSERT INTO relationship_types (id, display_name, color, is_system) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (id) DO UPDATE SET display_name=$2, color=$3`,
+      [t.id, t.displayName, t.color || null, Boolean(t.isSystem)]
+    );
+  }
+
   const beforeRels = byId(before.relationships), afterRels = byId(after.relationships);
   for (const id of Object.keys(afterRels)) {
     const prevRow = beforeRels[id], nextRow = afterRels[id];
@@ -150,16 +165,6 @@ async function writeDiff(client, before, after, versions) {
     if (!afterRels[id]) await client.query("DELETE FROM relationships WHERE id = $1", [id]);
   }
 
-  const beforeTypes = byId(before.relationshipTypes || []), afterTypes = byId(after.relationshipTypes || []);
-  for (const id of Object.keys(afterTypes)) {
-    const t = afterTypes[id];
-    if (beforeTypes[id] && JSON.stringify(beforeTypes[id]) === JSON.stringify(t)) continue;
-    await client.query(
-      `INSERT INTO relationship_types (id, display_name, color, is_system) VALUES ($1,$2,$3,$4)
-       ON CONFLICT (id) DO UPDATE SET display_name=$2, color=$3`,
-      [t.id, t.displayName, t.color || null, Boolean(t.isSystem)]
-    );
-  }
   for (const id of Object.keys(beforeTypes)) {
     if (!afterTypes[id]) await client.query("DELETE FROM relationship_types WHERE id = $1", [id]);
   }
@@ -306,6 +311,31 @@ function createPgDataStore(pool) {
         // A conflict (or any other failure) may mean our cached snapshot is stale; drop it so
         // the next read (including the caller's own retry) sees the current committed state
         // instead of repeating the same doomed comparison.
+        cached = null;
+        throw error;
+      } finally {
+        client.release();
+      }
+      cached = await loadState(pool);
+      return JSON.parse(JSON.stringify(cached.state));
+    },
+    // Applies several core operations in sequence against one in-memory state (each seeing the
+    // previous operation's effect, e.g. a relationship referencing an org the same batch just
+    // created), then writes the FINAL diff in a single transaction. Used where a caller needs
+    // several logically-dependent core.apply steps to either all land or none — e.g. the real-data
+    // importer's organisations -> projects -> relationships phases — without leaving a partially
+    // imported state if a later phase fails validation.
+    async applyBatch(operations) {
+      const before = await ensureLoaded();
+      let state = before.state;
+      for (const op of operations) state = core.apply(state, op.operation, op.value, op.recordId, op.username);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await writeDiff(client, before.state, state, before.versions);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
         cached = null;
         throw error;
       } finally {

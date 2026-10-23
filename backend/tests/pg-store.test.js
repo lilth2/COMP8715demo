@@ -125,4 +125,14 @@ test("PostgreSQL store: migration, import reconciliation, restart persistence, a
     const finalRecord = (await storeA.snapshot()).actors.find(a => a.id === actorId);
     assert.equal(finalRecord.summary, "Edited by A", "the committed write is A's; B's conflicting write never applied");
   });
+
+  await t.test("applyBatch rolls back ALL operations in the batch if a later one fails, never leaving a partially-imported state", async () => {
+    const store = createPgDataStore(pool);
+    await assert.rejects(() => store.applyBatch([
+      { operation: "bulkUpsert", value: { collection: "actors", mode: "add-only", rows: [{ id: "rollback-batch-org", name: "Rollback Batch Org", type: "university", summary: "x", sourceRow: 2 }] }, username: "tester" },
+      { operation: "bulkUpsert", value: { collection: "relationships", mode: "add-only", rows: [{ source: "does-not-exist", target: "also-does-not-exist", type: "collaborates_with", sourceRow: 2 }] }, username: "tester" },
+    ]));
+    const snap = await store.snapshot();
+    assert.equal(snap.actors.some(a => a.id === "rollback-batch-org"), false, "the organisation from the first (otherwise-valid) operation must not persist when a later operation in the same batch fails");
+  });
 });

@@ -110,6 +110,15 @@ function createAccountsStore(pool, environment) {
       if (!row) throw Object.assign(new Error("Account not found."), { status: 404 });
       await pool.query("UPDATE accounts SET disabled_at = NULL WHERE id = $1", [id]);
     },
+    // Account-management actions (create/disable/enable/password-change) happen outside the
+    // dataset-core.js state tree that the regular audit_log writes go through (backend/db/pg-
+    // store.js), so they need their own direct write here to stay traceable to the acting account.
+    async audit({ actor, action, targetAccountId, targetUsername, result }) {
+      await pool.query(
+        `INSERT INTO audit_log (actor, action, record_type, record_id, label, result) VALUES ($1,$2,'account',$3,$4,$5)`,
+        [actor, action, targetAccountId || null, targetUsername || null, result || "success"]
+      );
+    },
   };
 }
 

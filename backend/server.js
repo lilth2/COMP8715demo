@@ -252,6 +252,7 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         if (!current) return json(res, 401, { message: "Login required." });
         const value = await body(req);
         const created = await accountsStore.create({ username: value.username, password: value.password, role: value.role, displayName: value.displayName, createdBy: current.username, expiresAt: value.expiresAt });
+        await accountsStore.audit({ actor: current.username, action: "Created account", targetAccountId: created.id, targetUsername: created.username });
         return json(res, 200, created);
       }
       const accountActionMatch = url.pathname.match(/^\/api\/admin\/accounts\/([^/]+)\/(disable|enable|set-password)$/);
@@ -262,14 +263,23 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         if (action === "disable") {
           await accountsStore.disable(accountId);
           await sessionsStore.revokeAllForAccount(accountId); // a disabled account's existing sessions must stop working immediately
-          return json(res, 200, await accountsStore.get(accountId));
+          const target = await accountsStore.get(accountId);
+          await accountsStore.audit({ actor: current.username, action: "Disabled account", targetAccountId: accountId, targetUsername: target && target.username });
+          return json(res, 200, target);
         }
-        if (action === "enable") { await accountsStore.enable(accountId); return json(res, 200, await accountsStore.get(accountId)); }
+        if (action === "enable") {
+          await accountsStore.enable(accountId);
+          const target = await accountsStore.get(accountId);
+          await accountsStore.audit({ actor: current.username, action: "Enabled account", targetAccountId: accountId, targetUsername: target && target.username });
+          return json(res, 200, target);
+        }
         if (action === "set-password") {
           const value = await body(req);
           await accountsStore.setPassword(accountId, value.password);
           await sessionsStore.revokeAllForAccount(accountId); // force re-login with the new password everywhere
-          return json(res, 200, await accountsStore.get(accountId));
+          const target = await accountsStore.get(accountId);
+          await accountsStore.audit({ actor: current.username, action: "Changed password", targetAccountId: accountId, targetUsername: target && target.username });
+          return json(res, 200, target);
         }
       }
       if (url.pathname.startsWith("/api/")) return json(res, 404, { message: "Not found." });

@@ -1,16 +1,38 @@
 # Delivery report
 
 Repository: `https://github.com/lilth2/COMP8715demo` (remote unchanged throughout this work).
-Branch: `master`. All work is committed; **not yet pushed to origin** — 20 commits ahead of
-`origin/master` as of this report (confirm before pushing, since that makes this history visible
-to anyone with repo access).
+Branch: `master`.
+
+---
+
+## 0. FINAL STATUS (this supersedes §1's table below, which was the earlier checkpoint)
+
+| Claim | Status | Evidence |
+| --- | --- | --- |
+| **Code complete** | Yes | Every item in §2–§9 below, plus the password-change-enforcement, screenshot-in-Postgres, and auto-migration-on-boot work added after this report was first written (see git log; not re-narrated here). |
+| **Pushed** | Yes | `master` is fully pushed to `origin/master`; see `git log origin/master` — no commits are local-only. |
+| **CI** | Green | 123/123 tests passing, GitHub Actions run `39975799003` (verified via `gh run view --log`, not assumed from a cached count). |
+| **Deployed** | Yes, live | Backend: Render.com free-tier Node web service at `https://comp8715demo-uat-backend.onrender.com`. Database: Neon.tech free-tier Postgres (no 30-day auto-expiry, unlike some competitors' free tiers). `render.yaml` in this repo documents the Blueprint used. |
+| **UAT database provisioned and running** | Yes | Schema migrated (confirmed: 16 tables present, `schema_meta.version = 1`); server now also auto-migrates on every boot (idempotent) as a structural fix, not just a one-time manual step. |
+| **Real Excel data imported** | Yes, into the live persistent database | 56 organisations / 16 projects / 92 relationships, 0 errors, verified by direct row count and by the import script's own fingerprint-based duplicate-detection guard (a re-run attempt was correctly refused). All **Draft** — see §8 of `docs/UAT.md` for why none of it is published yet (unreviewed internal evidence text, an open item from `docs/EXCEL_IMPORT_REPORT.md` that still needs your sign-off). |
+| **Stakeholder account created and enabled** | Yes | `stakeholder1` (placeholder username, no real name/email was available — see `docs/UAT.md` §3.1 for the rename path) created via `npm run setup:accounts`, forced-password-change flow verified live, full admin-equivalent capability confirmed live (see `docs/UAT.md` §7 for the itemised results). **Not yet handed over to her** — the one-time password used for this round's testing has been consumed and a fresh one must be generated before handover (`docs/UAT.md` §9). |
+| **Live access opened to the stakeholder** | **No** | Nothing in this round sent an invite or set an access date — that is explicitly still your call, per your own instruction. `docs/UAT.md` §9 has the ready-to-send invite text and handover steps when you decide to proceed. |
+
+Two real, independently-discovered-and-fixed bugs surfaced only once this went live (impossible to
+catch without a real deployment): (1) `GET /api/dataset` returned an unlogged 500 because the live
+database's schema had never been migrated, while `/api/health` reported success (it only checks
+connectivity, not schema) — fixed by auto-migrating on every boot, plus adding the error logging
+that had been silently missing; (2) the real-data import script's own error handler swallowed its
+failure message during the first live `--commit` run (the data had actually committed correctly;
+only the script's own diagnostic output was wrong) — fixed. Both are covered by new regression
+tests (`backend/tests/server-boot-migration.test.js` and the import script's logging fix).
 
 Source Excel: `D:\study\COMP8715\Organisation_Relationship_Data_Template (AB).xlsx` — verified to
 be a real file (not a directory), valid `.xlsx`, read-only throughout, never committed to the repo.
 
 ---
 
-## 1. What is done vs. not done (read this section first)
+## 1. What is done vs. not done (SUPERSEDED — kept for history only, see §0 above for current state)
 
 | Claim | Status |
 | --- | --- |
@@ -163,7 +185,7 @@ No already-working module was reimplemented from scratch; everything below exten
   itself** — not just via API calls — including the Accounts page, bulk import, and a full
   feedback submission/triage cycle.
 
-## 9. Deployment readiness
+## 9. Deployment readiness (SUPERSEDED — this was written before hosting was chosen; see §0 for the live state)
 
 Verified the actual remote and that no hosting platform is configured anywhere in the repo — none
 assumed, none guessed.
@@ -194,7 +216,13 @@ origin(s)/domain the UAT frontend will be served from (for `ALLOWED_ORIGINS`/`PU
 
 ---
 
-## 10. Test results (re-run fresh for this report, not cited from memory)
+## 10. Test results (SUPERSEDED — this count is stale; see §0 for the current, CI-verified count)
+
+The count below (121/121) is from an earlier local run, before this round's hosting/deployment
+work. **Do not cite this number as current** — see §0 at the top of this document for the real,
+CI-verified count (123/123, GitHub Actions run `39975799003`), which includes new tests added since
+this section was written (the forced-password-change lifecycle test and the server-boot-migration
+regression test).
 
 ```
 $ npm test
@@ -272,22 +300,36 @@ c29aaa8 Fix horizontal overflow on the public page at mobile widths
 2803695 Add docs/UAT.md; update README for the Postgres/multi-account feature set
 ```
 
-**Not pushed to `origin/master` yet** — 20 commits ahead as of this report (includes one from
-before this round). No PR exists; none was requested. Push (or open a PR) on your confirmation.
+**SUPERSEDED — now pushed.** All commits are on `origin/master`; see §0 for the current state and
+git log for the full, up-to-date commit history (which now includes everything through the live
+deployment, data import, and acceptance testing).
 
 ---
 
-## 12. What I need from you to go further
+## 12. What I need from you to go further (SUPERSEDED — see current status below)
 
-1. **Confirm whether to push** these 20 commits to `origin/master` (or open a PR instead).
-2. **A hosting decision** for the backend (platform/host) — nothing was assumed.
-3. **A real UAT PostgreSQL instance** (connection string) so the stakeholder account and the real
-   imported data can actually live somewhere persistent, rather than this session's disposable
-   local test databases.
-4. **Confirmation of the UAT frontend's origin/domain** for `ALLOWED_ORIGINS`/`PUBLIC_ORIGIN`.
+Items 1–4 below are now resolved (pushed, hosting decided and live, UAT Postgres provisioned, UAT
+origin is the Render URL itself). **Still open, your decision needed**:
+
+- **The "Supporting Evidence" column's internal methodology notes** (item 5 below) — this is the
+  reason none of the real imported data is published yet. See `docs/UAT.md` §8 for the full
+  explanation and the exact fields involved.
+- **An actual open-testing date** for the stakeholder (item 6 below) — still not set or assumed.
+- **Her real name/username**, if you have one now — the account currently uses the placeholder
+  `stakeholder1` (see `docs/UAT.md` §3.1 for the rename path, which needs no re-deployment).
+
+Original items, kept for context:
+
+1. ~~Confirm whether to push~~ — done, pushed.
+2. ~~A hosting decision~~ — done: Render.com (backend) + Neon.tech (Postgres), see `docs/UAT.md` §2.
+3. ~~A real UAT PostgreSQL instance~~ — done, Neon, schema migrated, real data imported.
+4. ~~Confirmation of the UAT frontend's origin/domain~~ — resolved: the backend serves its own
+   frontend at the same origin (`https://comp8715demo-uat-backend.onrender.com`), so no separate
+   `ALLOWED_ORIGINS` cross-origin frontend is in use for this round.
 5. **Your decision on the two open Excel data items** flagged in `docs/EXCEL_IMPORT_REPORT.md`:
    whether to curate the 56 free-text research-theme phrases onto the existing theme taxonomy, and
    whether the "Supporting Evidence" column's internal methodology notes should ever be shown
-   verbatim on the public site.
+   verbatim on the public site. **Still open** — this is why all 56/16/92 imported records remain
+   Draft.
 6. **An actual open-testing date**, if/when you have one — none has been set or assumed anywhere
    in this delivery.

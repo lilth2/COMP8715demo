@@ -4,14 +4,17 @@ This document covers: starting the UAT environment, creating/enabling/disabling 
 account, a short operating guide for her, a 10–15 minute test task list, how to recover from a
 problem during testing, and what to do once testing is finished.
 
-**Status as of this document**: code complete, CI-verified (122/122 tests passing against a real,
-disposable PostgreSQL database in GitHub Actions). **Hosting is decided** (Neon.tech for Postgres,
-Render.com for the backend — see §2.1) **but the actual accounts/deployment have not been created
-yet** — that needs you to sign up for both (free tier, no card, per the research behind this
-decision) and hand over the resulting connection string, since account creation needs your own
-identity/email. Nothing in this document should be read as "already live" until §2.1's steps are
-actually done and the health check in §2.3 has been run against the real URL. The specific open
-day/date for opening access has also not been set; nothing below assumes or invents one.
+**Status as of this document**: **live and verified**. CI: 123/123 tests passing (GitHub Actions
+run `39975799003`). Deployed: backend at `https://comp8715demo-uat-backend.onrender.com`
+(Render.com free tier), database on Neon.tech (genuinely free, no auto-expiry). Schema migrated,
+real Excel data imported (56 organisations / 16 projects / 92 relationships, all Draft — see §8),
+the stakeholder's account created and acceptance-tested end-to-end against the live URL (§7). The
+specific open day/date for inviting her to test has not been set; nothing below assumes or invents
+one — that is still your call.
+
+**Live UAT URL**: `https://comp8715demo-uat-backend.onrender.com/admin/login.html`
+(the backend serves both the API and the frontend at the same origin — no separate GitHub Pages
+UAT frontend is in use for this round).
 
 ---
 
@@ -127,50 +130,57 @@ actions.
 
 ---
 
-## 3. Creating, enabling and disabling the stakeholder's account
+## 3. The stakeholder's account (created and tested — this section reflects the real, live state)
 
-### 3.1 One-time creation (operator steps, after §2.1)
+### 3.1 What exists right now
 
-```powershell
-npm run setup:accounts -- --admin-username admin --stakeholder-username jane.stakeholder
-```
+- `admin` — for the dev team, created with a one-time generated password, **not yet
+  password-changed** (`mustChangePassword: true` until first login).
+- `stakeholder1` — **this is a placeholder username**, chosen because no real name or email was
+  available at creation time. Her account has a `displayName` of "Stakeholder (UAT)" so it is
+  obviously a placeholder in the Accounts list, and it can be renamed/recreated with her real
+  details at any time (ask her for a username/display name she's comfortable with, then either
+  create a new account with that name and disable `stakeholder1`, or just update the display name
+  — there is no username-rename endpoint today, only create/disable/set-password).
+- Both were created in the **UAT** database only (`APP_ENVIRONMENT=uat`), via
+  `npm run setup:accounts -- --admin-username admin --stakeholder-username stakeholder1`.
+- Both got **one-time generated passwords**, never written to a file, shown once at creation time
+  and nowhere else. `stakeholder1`'s one-time password was already consumed during this round's
+  acceptance testing (§7) — a **new** one-time password must be set for her before handover (§9).
 
-- Creates an `admin` account (for you/the dev team) and a `stakeholder` account (for her) in the
-  **UAT** database only.
-- Each account's initial password is generated randomly and printed to the terminal **once** — it
-  is never written to a file or logged anywhere. Copy it immediately and send it to her through a
-  secure channel (not committed to this repo, not pasted into a public chat).
-- A **generated** initial password forces a password change at first login: the account can sign
-  in with it, but the server blocks every other admin/feedback route (returns `403` with
-  `mustChangePassword: true`) until she sets her own password. The admin console shows a
-  non-dismissible "Choose your own password" dialog immediately after login in this case — she
-  cannot click through it without picking one. This means the one-time credential you hand her
-  never becomes her standing password.
-- Re-running the command is safe: an existing username is left untouched, not overwritten.
-- You can set a specific password instead of a generated one with `--stakeholder-password "..."`
-  if you need to (e.g. matching a password manager entry you're handing her), but a generated one
-  is preferred — it is the one that gets the forced-change protection above.
+### 3.2 How the forced password change works (verified live, §7)
 
-### 3.2 Giving her access
+A generated initial password forces a password change at first login: the account can sign in with
+it, but the server blocks every other admin/feedback route (`403` with `mustChangePassword: true`)
+until a new password is set. The admin console shows a non-dismissible "Choose your own password"
+dialog immediately after such a login — there is no way to click past it. This means the one-time
+credential handed to her never becomes her standing password. Confirmed live: logging in with the
+one-time password returned `mustChangePassword: true`; every `/api/admin/*` call was blocked with
+`403` until `POST /api/account/change-password` was called, which also revoked the pre-change
+session token immediately (confirmed: reusing the old token afterward returned `401`).
 
-Once a real UAT URL exists (not yet, per the status note at the top of this document), give her:
+### 3.3 Giving her access (handover procedure, not yet done)
 
-1. The UAT URL (e.g. `https://uat.your-domain.example/admin/login.html`).
-2. Her username.
-3. Her initial password, through a secure channel.
-4. The quick-start guide in §4 and the task list in §5.
+1. Before handing anything over: use **Set password** in the admin console (§3.4) to generate a
+   *fresh* one-time password for `stakeholder1` — the one used during this round's testing has
+   already been consumed and is no longer valid, by design.
+2. Give her, through channels that are NOT the same channel:
+   - The UAT URL: `https://comp8715demo-uat-backend.onrender.com/admin/login.html`
+   - Her username: `stakeholder1` (or her real name, if you've renamed/recreated by then)
+   - Her one-time password — **never in the same message/channel as the URL or username**, per
+     the brief's requirement that credentials travel over an independent secure channel.
+   - The quick-start guide in §4 and the task list in §5.
+3. Tell her explicitly this is an isolated test environment — nothing she does here reaches any
+   real public site, and she will be asked to set her own password the first time she logs in.
 
-Tell her explicitly this is an isolated test environment — nothing she does here reaches the real
-public site.
-
-### 3.3 Changing her password (if she wants to, or you need to reset it)
+### 3.4 Changing her password (if she wants to, or you need to reset it)
 
 In the admin console: **Accounts** → find her row → **Set password**. This immediately signs out
 any of her existing sessions, so she will need to log in again with the new password. There is no
 self-service "forgot password" flow — a password reset is always done by another admin/stakeholder
 account through this screen.
 
-### 3.4 Disabling her account after testing ends
+### 3.5 Disabling her account after testing ends
 
 In the admin console: **Accounts** → find her row → **Disable**. This:
 
@@ -257,7 +267,7 @@ in the meantime.
 - Check `GET /api/health` first (§2.3) — if the database is unreachable, that's a backend/hosting
   problem, not something wrong with her account.
 - Sessions last 8 hours; logging in again is expected after that.
-- If her account was disabled by an operator (§3.4), she will see a login failure — check the
+- If her account was disabled by an operator (§3.5), she will see a login failure — check the
   Accounts page to confirm her status.
 
 ### 6.3 "I submitted feedback but don't see it" / "I think I submitted it twice"
@@ -273,11 +283,160 @@ silently.
   (`docs/EXCEL_IMPORT_REPORT.md`) for exactly what was imported and what's still incomplete
   (several fields were deliberately left as "not disclosed" or placeholder-classified rather than
   guessed).
+- **The real imported dataset (56 organisations, 16 projects, 92 relationships) is intentionally
+  all Draft and will not appear on the public directory tab** — see §8 for exactly why (unreviewed
+  internal evidence text pending sign-off). She can still fully exercise bulk import, editing,
+  publish/withdraw, the Network editor, and feedback using her own test records.
 - No promise is made that it is bug-free — that is exactly what this testing round is for.
 
 ---
 
-## 7. After testing ends: feedback triage and access revocation
+## 7. Live acceptance test results (this round — real results, not a repeat of old numbers)
+
+Run directly against `https://comp8715demo-uat-backend.onrender.com` using the `stakeholder1`
+account, with clearly-labelled `[UAT-TEST]`-prefixed records created, exercised, and then cleaned
+up afterward (one `[UAT-TEST]` feedback item was deliberately left in place — feedback has no
+delete operation by design, for audit-trail integrity, so it remains, clearly labelled, status
+`Investigating`). No existing/real data was ever at risk: every write used a new, uniquely-prefixed
+ID.
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | Access/login using only handover-style materials (URL + credentials) | ✅ Logged in with the one-time password issued by `setup:accounts`; no other access path used |
+| 2 | Super-admin's actual operating scope is complete | ✅ Create/edit/publish/withdraw/delete organisations, create custom relationship types, create relationships using them, manage accounts, triage feedback — all exercised directly against the live API |
+| 3 | Unauthenticated / low-privilege requests rejected server-side | ✅ `/api/admin/dataset`, `/api/admin/accounts`, `/api/admin/action`, `/api/feedback`, `/api/admin/import/commit` all return `401` with no token |
+| 4 | UAT credentials cannot reach production | ✅ Structural, not tested by probing a production server (none exists yet) — `accountsStore` is constructed once per process against one `environment` value; see `backend/tests/multi-account.test.js`'s dedicated cross-environment test, which does exercise this against two real server processes |
+| 5 | Upload/paste/mapping/preview/submit for import | ✅ Direct-rows bulk import via `/api/admin/import/commit` created a real draft record; the full real Excel file (56/16/92) was separately imported via the dedicated import script (`backend/import/real-data/import-real-dataset.js`) |
+| 6 | Duplicate import / transaction failure / 409 conflict handling | ✅ Re-running the exact same Excel file was correctly refused by the fingerprint guard (no duplicate rows created, verified by direct row count before/after); optimistic-concurrency 409 behaviour is covered by `backend/tests/pg-store.test.js` (not re-tested manually live, since it requires two concurrent stale reads, but it is the same code path handling both) |
+| 7 | Custom relationship types: create, rename, display | ✅ Created `[UAT-TEST] Mentors`, used it on a real relationship, confirmed it displayed correctly, then deleted it (delete-of-in-use-type correctly requires removing the relationship first — not separately re-tested live this round, already covered by `pg-store.test.js`) |
+| 8 | Graph editing consistent with tables/directory/map/stats | Not driven through the actual browser UI this round (API-level testing only — see "Known gap" below) |
+| 9 | Drafts don't leak; publish/withdraw correct | ✅ Test org confirmed absent from `GET /api/dataset` while Draft, present immediately after Publish, absent again after Withdraw |
+| 10 | Delete shows impact, leaves no dangling relationships | ✅ Deleting a test org that had a relationship pointing to it succeeded and the relationship was gone afterward too — confirmed by direct query, not just a non-error response |
+| 11 | Feedback, attachment permissions, status, export | ✅ Submitted feedback with a PNG screenshot, retrieved the screenshot back byte-for-byte, changed its status with a note, confirmed `statusUpdatedBy` recorded correctly |
+| 12 | Two independent browsers read the same shared data | ✅ Simulated via two separate unauthenticated `GET /api/dataset` calls before/after a publish — both read the one shared server-side state, not per-browser storage (this is structurally what distinguishes a real backend from the GitHub Pages browser-demo mode) |
+| 13 | Data and feedback persist after restart/redeployment | ✅ The three deployment commits pushed this round each triggered a real Render redeploy; `GET /api/dataset`, the imported 56/16/92 records, and account state were all confirmed intact and correct immediately after each one, without re-running any setup step |
+| 14 | Backup can be restored, rehearsed on an isolated copy | ✅ Took a real snapshot of the live UAT database (`db:snapshot`, 57 actors / 16 projects / 92 relationships / 1 feedback item at the time), restored it into a freshly-created, separate, disposable local database — never touching the live UAT database for the restore itself — and confirmed every row count matched and `feedback` was correctly left untouched (not restored, by design) |
+| 15 | Key desktop/mobile flows | Not driven through an actual browser this round (see "Known gap" below) |
+
+**Known gap, stated plainly**: checks #8 and #15 need a real browser driving the actual admin
+console UI (Network editor canvas interactions, responsive layout at mobile width) — this round's
+testing was done directly against the live HTTP API (curl/node), which exercises every server-side
+rule and persistence guarantee identically to what the UI calls, but does not prove the JavaScript
+UI itself renders correctly. The admin console's own code was not changed in a way that would
+plausibly break rendering (recent changes were backend/data-layer only), but this has not been
+visually confirmed against the live deployment. **Recommend**: before inviting the stakeholder,
+someone opens `https://comp8715demo-uat-backend.onrender.com/admin/login.html` in an actual
+browser, signs in, and clicks through the Network editor and a few pages at both desktop and phone
+width once, specifically to close this gap.
+
+Browser console / backend logs / database errors: no backend errors occurred during this round's
+testing beyond the two already-diagnosed-and-fixed incidents (the pre-migration 500 and the import
+script's own logging bug, both covered in git history); no way to inspect "browser console" without
+a real browser session, per the gap above.
+
+## 8. Data publication status (none of the real imported data is public yet)
+
+**Everything imported from the real Excel file is Draft.** Confirmed directly in the database:
+56/56 actors, 16/16 projects, 92/92 relationships are all `status = draft`. `GET /api/dataset`
+(the public, unauthenticated endpoint) returns empty arrays for all three collections. Nothing from
+this import has been published to the UAT public view.
+
+**Why, specifically — this is not a default, it's a deliberate hold per an open item already
+flagged in `docs/EXCEL_IMPORT_REPORT.md`**: every imported project's `evidence_snippet` and every
+relationship's `evidence` field embeds the data preparer's own internal "Supporting evidence" notes
+(Excel column S — e.g. *"Date review: official project page confirms... Not disclosed means no
+explicit project date was located..."*). These fields are rendered **verbatim on the public page**
+(`app.js` prints `node.evidenceSnippet` and `relationship.evidence` directly). This content was
+never reviewed for public-facing suitability, so publishing any of it now would expose unreviewed
+internal methodology notes as if they were public-facing copy — exactly the risk the import report
+flagged and asked for sign-off on, which has not yet been given.
+
+**Explicitly pending your confirmation, listed (not guessed)**:
+1. Whether the Supporting Evidence text in every relationship's `evidence` field and every
+   project's `evidence_snippet` is acceptable to show publicly as-is, needs rewriting into
+   public-facing copy first, or should be stripped from public rendering regardless of review
+   (e.g. show it in Admin only, never on the public page).
+2. The 56 free-text research-theme phrases (Excel column K) are not mapped onto any curated Theme
+   node — kept as descriptive text only. No decision needed to keep the current Draft-everything
+   state, but relevant if/when a future publish decision is made per-record.
+3. Every organisation's `type` is a placeholder (`industry_partner`) pending manual classification
+   — not a blocker for staying Draft, but worth knowing before a future publish pass.
+
+**What this means for the acceptance test guide (§5)**: the stakeholder's 10–15 minute test task
+list still works fully — she can view, create, bulk-import, publish/withdraw her OWN test records
+(exactly like the `[UAT-TEST]` records exercised in §7), exercise the Network editor, and submit
+feedback. She will not see any of the real 56/16/92 organisations/projects/relationships appear on
+the public directory tab, because none of them are published — this is expected, not a bug, and
+should be explained to her up front (see the updated §6.4 note below).
+
+---
+
+## 9. Secure handover procedure (do this before telling her anything)
+
+1. In the admin console (sign in as `admin` or the current `stakeholder1` session), go to
+   **Accounts** → `stakeholder1`'s row → **Set password**, and generate a fresh one-time password.
+   (The password used during this round's acceptance testing — §7 — has already been consumed and
+   will not work; this is required, not optional.)
+2. Send the following over **two separate channels** (never the password in the same message as
+   the URL/username):
+   - **Channel A** (e.g. email, Slack, Teams message — whatever she'd normally expect contact
+     from you on): the URL and username, plus the short invite text below.
+   - **Channel B** (a different channel — a password manager share, a phone call, a separate
+     encrypted message): just the one-time password, nothing else.
+3. She logs in once with that one-time password, and the system forces her to set her own password
+   before anything else is usable (§3.2) — after that point, only she knows it.
+
+### Forwardable invite text (Channel A — contains no password)
+
+> Hi — the UAT (User Acceptance Testing) environment for the Australian R&D Directory project is
+> ready for you to try. You'll see an orange "USER ACCEPTANCE TESTING" banner on every page,
+> confirming this is an isolated test copy — nothing you do here affects any real public site.
+>
+> URL: https://comp8715demo-uat-backend.onrender.com/admin/login.html
+> Username: stakeholder1
+>
+> Your one-time password is coming separately, through [state the other channel you're using, e.g.
+> "a text message" / "our password manager"]. The first time you log in, you'll be asked to choose
+> your own password — do that straight away.
+>
+> A short list of things to try (roughly 10–15 minutes) is attached/linked: [attach or link
+> docs/UAT.md §5, or copy its contents into your own message].
+>
+> If anything looks wrong, confusing, or breaks, click "Report an issue" at the top of any admin
+> page — that's exactly what this round is for.
+
+### What to tell her about the data (per §8)
+
+The real organisation/project/relationship data imported from the source Excel file is deliberately
+**not yet visible on the public directory tab** — it's all still in Draft, pending a decision on
+whether some descriptive text needs review before going public. She can see and work with it in the
+admin console (tables, Network editor), and her own test records will publish/withdraw normally.
+
+---
+
+## 10. Backup, restore, and log-viewing for whoever operates this after handover
+
+- **Taking a backup**: `DATABASE_URL="<neon connection string>" node backend/db/snapshot.js
+  ./uat-backups` — writes a timestamped JSON file with every data table except `accounts`/
+  `sessions` (credentials are never included in a snapshot).
+- **Restoring**: **always rehearse on an isolated copy first**, never directly against the live UAT
+  database you're trying to protect — see §7's "backup can be restored" result for exactly how this
+  round's rehearsal was done (migrate a fresh disposable local database, restore the real UAT
+  snapshot into it, confirm the row counts, then discard the disposable copy). Only after a
+  rehearsal succeeds should `node backend/db/restore.js <snapshot-file> --confirm` be run against
+  the real `DATABASE_URL` — and even then, `restore.js` automatically takes a fresh safety backup
+  of the live database's current state before touching anything, and never restores the `feedback`
+  table unless `--include-feedback` is explicitly passed.
+- **Viewing logs**: Render dashboard → this service → **Logs** tab. Since this round's fix, an
+  unexpected server error is logged there with its full route and stack trace (previously, some
+  failures were silently swallowed — see the "Known issues" section of the final delivery report
+  for the specific incident this fixed).
+- **Common troubleshooting**: see §6 above (data recovery, login issues, duplicate feedback
+  concerns).
+
+---
+
+## 11. After testing ends: feedback triage and access revocation
 
 1. **Review feedback**: admin console → Feedback page. Filter by status, open each item, read the
    detail (including any screenshot), and change its status as you work through it (New →

@@ -26,7 +26,6 @@ test("Multi-account auth: admin/stakeholder roles, account management, disable/s
   const connectionString = `postgres://test:test@127.0.0.1:${port}/rd_accounts_test`;
 
   const pool = new Pool({ connectionString });
-  t.after(async () => { await pool.end(); await pg.stop(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
   const { migrate } = require("../db/migrate");
   await migrate(connectionString);
@@ -48,7 +47,11 @@ test("Multi-account auth: admin/stakeholder roles, account management, disable/s
   const uatApp = createApp({ secureCookies: false, allowedOrigins: ["http://test.local"], store, accountsStore: uatAccounts, sessionsStore: uatSessions, environment: "uat" });
   await new Promise(resolve => uatApp.listen(0, "127.0.0.1", resolve));
   const uatBase = "http://127.0.0.1:" + uatApp.address().port;
+  // node:test runs `after` hooks in registration order, so HTTP servers (which hold the pool via
+  // store/accountsStore) must be closed strictly before the pool itself, which must be ended
+  // before the Postgres process underneath it is stopped.
   t.after(() => new Promise(resolve => uatApp.close(resolve)));
+  t.after(async () => { await pool.end(); await pg.stop(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
   const post = (base, route, value, token) => fetch(base + route, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://test.local", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: JSON.stringify(value) });
   const get = (base, route, token) => fetch(base + route, { headers: { Origin: "http://test.local", ...(token ? { Authorization: "Bearer " + token } : {}) } });

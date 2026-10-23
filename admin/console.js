@@ -252,6 +252,7 @@
     renderAll();
     if (page === "network" && Editor) Editor.activate();
     if (page === "bulk-import" && window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.activate();
+    if (page === "accounts" && window.RD_ACCOUNTS) window.RD_ACCOUNTS.render();
   }
 
   function renderMetrics(snapshot) {
@@ -761,6 +762,7 @@
     wireEvents();
     if (Editor) Editor.mount(window.RD_ADMIN_UI);
     if (window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.wireEvents();
+    if (window.RD_ACCOUNTS) { window.RD_ACCOUNTS.wireEvents(); window.RD_ACCOUNTS.render(); }
     renderAll();
     document.body.classList.remove("auth-pending");
     window.setInterval(requireLogin, 60000);

@@ -65,6 +65,7 @@
       <button class="nav-btn" data-page="themes">Research themes <span class="nav-count" id="themeNavCount">0</span></button>
       <button class="nav-btn" data-page="relationships">Relationships <span class="nav-count" id="relNavCount">0</span></button>
       <button class="nav-btn" data-page="sources">Sources <span class="nav-count" id="sourceNavCount">0</span></button>
+      <button class="nav-btn" id="accountsNavBtn" data-page="accounts" hidden>Accounts</button>
       <button class="nav-btn" data-page="history">Change history</button>
       <div class="side-note"><strong>Administrator workspace</strong>Changes are saved to the server and recorded in change history.</div>
     </aside>
@@ -196,6 +197,11 @@
         <div class="panel"><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Source</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="sourceTableBody"></tbody></table></div></div></div>
       </section>
 
+      <section class="page" id="page-accounts">
+        <div class="page-head"><div><h1>Accounts</h1><p>Manage administrator and stakeholder (UAT tester) accounts in this environment. A stakeholder account has the same capability as an administrator account here; what separates a UAT deployment from production is that they are entirely separate databases, not a permission level.</p></div><button class="btn primary" id="addAccountBtn">+ Add account</button></div>
+        <div class="panel"><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody id="accountsTableBody"></tbody></table></div></div></div>
+      </section>
+
       <section class="page" id="page-history">
         <div class="page-head"><div><h1>Change history</h1><p>Review changes recorded by the server for your administrator account.</p></div><button class="btn danger" id="resetBtn">Reset demo data</button></div>
         <div class="panel"><div class="panel-body"><div class="audit-list" id="auditList"></div></div></div>
@@ -306,10 +312,35 @@
       <div class="form-body"><div class="form-grid">
         <input type="hidden" id="relTypeOriginalId" />
         <div class="field"><label for="relTypeName">Display name *</label><input id="relTypeName" required maxlength="120" /></div>
-        <div class="field"><label for="relTypeId">ID</label><input id="relTypeId" placeholder="auto-generated from the name" pattern="[a-z0-9_-]{1,80}" /></div>
+        <div class="field"><label for="relTypeId">ID</label><input id="relTypeId" placeholder="auto-generated from the name" pattern="[a-z0-9_\-]{1,80}" /></div>
         <div class="field"><label for="relTypeColor">Colour</label><input id="relTypeColor" type="color" /></div>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="relTypeDialog">Cancel</button><button class="btn teal" type="submit">Save type</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="accountDialog">
+    <form id="accountForm">
+      <div class="modal-head"><h2 id="accountDialogTitle">Add account</h2><button class="close" type="button" data-close="accountDialog">×</button></div>
+      <div class="form-body"><div class="form-grid">
+        <div class="field"><label for="accountUsername">Username *</label><input id="accountUsername" required maxlength="64" pattern="[a-zA-Z0-9\.\-_]{3,64}" /></div>
+        <div class="field"><label for="accountRole">Role *</label><select id="accountRole"><option value="stakeholder">Stakeholder (UAT tester)</option><option value="admin">Administrator</option></select></div>
+        <div class="field full"><label for="accountPassword">Initial password *</label><input id="accountPassword" type="text" required minlength="12" placeholder="At least 12 characters" /></div>
+        <div class="field full"><label for="accountDisplayName">Display name</label><input id="accountDisplayName" maxlength="200" /></div>
+      </div></div>
+      <div class="form-actions"><button class="btn" type="button" data-close="accountDialog">Cancel</button><button class="btn teal" type="submit">Create account</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="setPasswordDialog">
+    <form id="setPasswordForm">
+      <div class="modal-head"><h2>Set a new password</h2><button class="close" type="button" data-close="setPasswordDialog">×</button></div>
+      <div class="form-body"><div class="form-grid">
+        <input type="hidden" id="setPasswordAccountId" />
+        <div class="field full"><label for="setPasswordValue">New password *</label><input id="setPasswordValue" type="text" required minlength="12" placeholder="At least 12 characters" /></div>
+        <p class="help">The account's existing sessions will be signed out immediately once the password changes.</p>
+      </div></div>
+      <div class="form-actions"><button class="btn" type="button" data-close="setPasswordDialog">Cancel</button><button class="btn teal" type="submit">Set password</button></div>
     </form>
   </dialog>
 
@@ -320,6 +351,7 @@
   <script src="dataset-core.js"></script>
   <script src="demo-store.js"></script>
   <script src="store.js"></script>
+  <script src="accounts.js"></script>
   <script src="network-editor.js"></script>
   <script src="bulk-import.js"></script>
   <script src="console.js"></script>

@@ -15,6 +15,7 @@
       --panel:#fff; --canvas:#f3f6f9; --shadow:0 12px 32px rgba(16,46,82,.09);
     }
     *{box-sizing:border-box} body{margin:0;background:var(--canvas);color:var(--ink);font-family:Rubik,Arial,sans-serif;font-size:14px}
+    [hidden]{display:none!important}
     button,input,select,textarea{font:inherit} button{cursor:pointer}
     .topbar{height:64px;background:var(--navy);color:#fff;display:flex;align-items:center;padding:0 24px;gap:18px;position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,0,0,.16)}
     .brand{display:flex;align-items:center;gap:12px;font-weight:700}.brand-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#49b7aa,#d9a332);display:grid;place-items:center;color:#0d2c4d}.brand small{display:block;font-weight:400;color:#b9c9da;margin-top:2px}
@@ -58,6 +59,7 @@
       <div class="side-label">Workspace</div>
       <button class="nav-btn active" data-page="dashboard">Dashboard</button>
       <button class="nav-btn" data-page="network">Network editor</button>
+      <button class="nav-btn" data-page="bulk-import">Bulk import</button>
       <button class="nav-btn" data-page="organisations">Organisations <span class="nav-count" id="orgNavCount">0</span></button>
       <button class="nav-btn" data-page="projects">Projects <span class="nav-count" id="projectNavCount">0</span></button>
       <button class="nav-btn" data-page="themes">Research themes <span class="nav-count" id="themeNavCount">0</span></button>
@@ -97,6 +99,72 @@
           <aside class="ne-panel" id="nePanel"></aside>
         </div>
         <div class="ne-legend"><span><i class="lg lg-pub"></i>Published</span><span><i class="lg lg-draft"></i>Draft (dashed)</span><span><i class="lg lg-pending"></i>Published with unpublished changes (amber ring)</span><span>Layout positions are editor-only canvas coordinates; they are not map locations.</span></div>
+      </section>
+
+      <section class="page" id="page-bulk-import">
+        <div class="page-head"><div><h1>Bulk import</h1><p>Add or update many records at once: paste rows copied from a spreadsheet, type several rows directly, or upload an .xlsx / .csv file. Every row is checked before anything is saved; imported records start as drafts and never reach the public site until you publish them.</p></div></div>
+
+        <div class="panel"><div class="panel-body">
+          <div class="form-grid">
+            <div class="field"><label for="biCollection">What are you importing? *</label>
+              <select class="select" id="biCollection">
+                <option value="actors">Organisations</option>
+                <option value="projects">Projects</option>
+                <option value="themes">Research themes</option>
+                <option value="relationships">Relationships</option>
+              </select>
+            </div>
+            <div class="field"><label for="biMode">Mode *</label>
+              <select class="select" id="biMode">
+                <option value="add-only">Add only (every row must be new)</option>
+                <option value="update-by-id">Update by ID (every row must already exist)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bi-tabs" role="tablist" style="margin:18px 0 10px;display:flex;gap:8px">
+            <button class="btn small bi-tab active" id="biTabForm" type="button" data-bi-tab="form">Type or paste rows</button>
+            <button class="btn small bi-tab" id="biTabFile" type="button" data-bi-tab="file">Upload a file</button>
+          </div>
+
+          <div id="biPanelForm" class="bi-panel">
+            <p class="help">Click a cell and type, or paste a rectangular block copied from Excel/Sheets directly into the table (select the top-left cell first). Column headers change based on what you're importing above.</p>
+            <div class="table-wrap"><table id="biFormTable"><thead id="biFormHead"></thead><tbody id="biFormBody"></tbody></table></div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <button class="btn small" id="biAddRow" type="button">+ Add row</button>
+              <button class="btn small" id="biDuplicateRow" type="button">Duplicate last row</button>
+              <button class="btn small danger" id="biClearRows" type="button">Clear all rows</button>
+            </div>
+          </div>
+
+          <div id="biPanelFile" class="bi-panel" hidden>
+            <p class="help">Upload a .xlsx workbook or a UTF-8 .csv file. Large files, too many rows, or an unsupported format are rejected before anything is read into memory beyond the limit.</p>
+            <input type="file" id="biFileInput" accept=".xlsx,.csv" />
+            <div id="biFileDetails" hidden style="margin-top:14px">
+              <div class="form-grid">
+                <div class="field" id="biSheetField" hidden><label for="biSheetSelect">Sheet</label><select class="select" id="biSheetSelect"></select></div>
+                <div class="field"><label for="biHeaderRow">Header row number</label><input id="biHeaderRow" type="number" min="1" value="1" style="width:100px" /></div>
+              </div>
+              <div id="biMappingGrid" style="margin-top:14px"></div>
+              <div id="biFormulaWarning" class="warn" hidden style="margin-top:10px">This file contains formulas. Only their last-saved value is read; formulas themselves are never evaluated.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px"><button class="btn primary" id="biPreviewBtn" type="button">Preview import</button></div>
+
+          <div id="biPreviewArea" hidden style="margin-top:22px">
+            <h3 style="margin:0 0 8px">Preview</h3>
+            <div id="biPreviouslyImported" class="warn" hidden style="margin-bottom:10px"></div>
+            <div class="metric-grid" id="biCounts" style="margin-bottom:14px"></div>
+            <div class="table-wrap" style="max-height:360px;overflow:auto"><table><thead><tr><th>Row</th><th>Action</th><th>Details</th></tr></thead><tbody id="biPreviewBody"></tbody></table></div>
+            <div style="margin-top:14px"><button class="btn primary" id="biCommitBtn" type="button" disabled>Confirm and import</button></div>
+          </div>
+
+          <div id="biResultArea" hidden style="margin-top:22px">
+            <h3 style="margin:0 0 8px">Import complete</h3>
+            <div id="biResultSummary"></div>
+          </div>
+        </div></div>
       </section>
 
       <section class="page" id="page-organisations">
@@ -253,6 +321,7 @@
   <script src="demo-store.js"></script>
   <script src="store.js"></script>
   <script src="network-editor.js"></script>
+  <script src="bulk-import.js"></script>
   <script src="console.js"></script>
 </body>
 </html>

@@ -251,6 +251,7 @@
     $$(".nav-btn").forEach(function (item) { item.classList.toggle("active", item.dataset.page === page); });
     renderAll();
     if (page === "network" && Editor) Editor.activate();
+    if (page === "bulk-import" && window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.activate();
   }
 
   function renderMetrics(snapshot) {
@@ -745,6 +746,7 @@
     fillCommonOptions();
     wireEvents();
     if (Editor) Editor.mount(window.RD_ADMIN_UI);
+    if (window.RD_BULK_IMPORT) window.RD_BULK_IMPORT.wireEvents();
     renderAll();
     document.body.classList.remove("auth-pending");
     window.setInterval(requireLogin, 60000);

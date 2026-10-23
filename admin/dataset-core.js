@@ -2,7 +2,7 @@
 // (admin/demo-store.js, admin/store.js), so GitHub Pages demo mode and the real backend
 // apply exactly the same rules for drafts, publishing, deleting and linking.
 //
-// Data model (version 3)
+// Data model (version 4)
 //   actors / projects / themes   nodes. Each has `status` ("draft" | "published") and, while
 //                                published, `publishedSnapshot` = the public copy.
 //   relationships                edges, same lifecycle. THEY ARE THE AUTHORITY for links:
@@ -11,6 +11,14 @@
 //                                `hostId` and the theme ids in `themes` are derived from them
 //                                (see derive()); only free tags without a theme node are edited
 //                                directly on a node.
+//   relationshipTypes            reference data, not lifecycle-gated (like sources): stable id,
+//                                editable displayName, optional color. Two ids are system types
+//                                (hosted_by, shares_research_theme in THEME_LINK/HOST_LINK) and
+//                                cannot be renamed, deleted or merged away because derive() and
+//                                the public API depend on those exact strings. Any other type is
+//                                freeform: created on first use from the admin form, network
+//                                editor or bulk import, renamed freely, or merged into another
+//                                type before being deleted if it is still referenced.
 //   layout.nodes                 { id: {x, y} } Admin graph-editor positions. Abstract canvas
 //                                coordinates, unrelated to map/office locations.
 (function (root, factory) {
@@ -19,14 +27,22 @@
   else (typeof window !== "undefined" ? window : root).RD_CORE = api;
 })(this, function () {
   "use strict";
-  var VERSION = 3;
+  var VERSION = 4;
   var STATUSES = ["draft", "published"];
   var COLLECTIONS = ["actors", "projects", "themes", "relationships"];
   var NODE_COLLECTIONS = ["actors", "projects", "themes"];
   var ID_ARRAY_FIELDS = ["industryPartners", "relatedFacilities", "keyActorIds", "relatedProjects"];
   var THEME_LINK = "shares_research_theme";
   var HOST_LINK = "hosted_by";
+  var TYPE_ID_RE = /^[a-z0-9_-]{1,80}$/;
   var has = function (obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); };
+  // A readable default color for a relationship type with no explicit one, stable per id.
+  var DEFAULT_PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#8b1b61", "#5b6472", "#a9720a", "#0f2d52", "#631244"];
+  function defaultColor(id) {
+    var hash = 0;
+    for (var i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    return DEFAULT_PALETTE[hash % DEFAULT_PALETTE.length];
+  }
 
   function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
   function canon(value) {
@@ -57,7 +73,15 @@
     // Captured now: the browser store later replaces D.actors etc. with live data.
     var seed = clone({ actors: D.actors, projects: D.projectNodes, themes: D.themeNodes, relationships: D.relationships, sources: D.sources });
     var today = function () { return new Date().toISOString().slice(0, 10); };
-    var typeLabel = function (type) { return (D.RELATIONSHIP_META[type] || {}).label || type; };
+    // Seed relationship types from the legacy static RELATIONSHIP_META map (data.js), used only
+    // the first time a dataset is created or migrated from a version with no relationshipTypes.
+    var seedRelationshipTypes = function () {
+      return Object.keys(D.RELATIONSHIP_META).map(function (id) {
+        return { id: id, displayName: D.RELATIONSHIP_META[id].label, color: D.RELATIONSHIP_META[id].color || defaultColor(id), isSystem: id === THEME_LINK || id === HOST_LINK };
+      });
+    };
+    function findType(state, id) { return (state.relationshipTypes || []).filter(function (t) { return t.id === id; })[0]; }
+    function typeLabel(state, type) { var t = findType(state, type); return t ? t.displayName : type; }
 
     function findNode(state, id) {
       for (var i = 0; i < NODE_COLLECTIONS.length; i++) {
@@ -67,7 +91,7 @@
       return null;
     }
     function nameOf(state, id) { var found = findNode(state, id); return found ? found.record.name : id; }
-    function relLabel(state, rel) { return nameOf(state, rel.sourceId) + " → " + nameOf(state, rel.targetId) + " (" + typeLabel(rel.type) + ")"; }
+    function relLabel(state, rel) { return nameOf(state, rel.sourceId) + " → " + nameOf(state, rel.targetId) + " (" + typeLabel(state, rel.type) + ")"; }
     function kindWord(collection) { return { actors: "organisation", projects: "project", themes: "theme" }[collection] || "record"; }
     function themeIds(state) { return new Set(state.themes.map(function (t) { return t.id; })); }
 
@@ -202,8 +226,22 @@
     function withSourceIds(sources) {
       return sources.map(function (s) { return Object.assign({}, s, { id: s.id || slug(s.type || s.name) }); });
     }
+    // Any relationship type referenced by data but missing from relationshipTypes (legacy
+    // datasets predating this collection, or a type introduced by a freeform save) is added with
+    // a generated label, so nothing ever fails to resolve to a display name.
+    function withRelationshipTypes(types, relationships) {
+      var list = (types && types.length ? clone(types) : seedRelationshipTypes()).map(function (t) {
+        return { id: t.id, displayName: t.displayName || title(t.id), color: t.color || defaultColor(t.id), isSystem: Boolean(t.isSystem) || t.id === THEME_LINK || t.id === HOST_LINK };
+      });
+      var known = {}; list.forEach(function (t) { known[t.id] = true; });
+      (relationships || []).forEach(function (rel) {
+        if (rel && rel.type && !known[rel.type]) { known[rel.type] = true; list.push({ id: rel.type, displayName: title(rel.type), color: defaultColor(rel.type), isSystem: false }); }
+      });
+      return list;
+    }
+    function title(value) { return String(value || "").replace(/[-_]/g, " ").replace(/\b\w/g, function (l) { return l.toUpperCase(); }); }
 
-    // Brings any stored dataset (v1 without status, v2 with "archived", v3) to version 3.
+    // Brings any stored dataset (v1 without status, v2 with "archived", v3, v4) to version 4.
     function normalize(raw) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail("Expected a dataset object.");
       var report = { fromVersion: raw.version || 1, archivedToDraft: 0, migratedToPublished: 0, themeLinksCreated: 0, hostLinksCreated: 0, changed: false };
@@ -215,6 +253,7 @@
         // Seed themes added to data saved before themes were stored are bookkeeping, not user records.
         themes: (list("themes").length ? list("themes") : seed.themes).map(function (r) { return lifecycle(r, list("themes").length ? report : { archivedToDraft: 0, migratedToPublished: 0 }); }),
         relationships: list("relationships").map(function (r) { return lifecycle(r, report); }),
+        relationshipTypes: withRelationshipTypes(list("relationshipTypes"), list("relationships")),
         sources: list("sources").length ? clone(raw.sources) : withSourceIds(clone(seed.sources)),
         layout: { nodes: {} },
         audit: clone(list("audit")),
@@ -244,7 +283,7 @@
     }
 
     function defaults() {
-      return normalize({ version: 0, actors: seed.actors, projects: seed.projects, themes: seed.themes, relationships: seed.relationships, sources: withSourceIds(seed.sources), audit: [] }).state;
+      return normalize({ version: 0, actors: seed.actors, projects: seed.projects, themes: seed.themes, relationships: seed.relationships, relationshipTypes: seedRelationshipTypes(), sources: withSourceIds(seed.sources), audit: [] }).state;
     }
 
     // ---------------------------------------------------------------- validation
@@ -280,11 +319,21 @@
         if (!okUrl) fail("Invalid website URL.");
       }
     }
+    function checkRelationshipType(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) fail("Invalid relationship type.");
+      if (typeof value.id !== "string" || !TYPE_ID_RE.test(value.id)) fail("Invalid relationship type ID.");
+      text(value.displayName, "relationship type name", true);
+      if (value.color !== undefined && value.color !== null && (typeof value.color !== "string" || !/^#[0-9a-fA-F]{3,8}$/.test(value.color))) fail("Invalid relationship type color.");
+    }
     function validate(value) {
-      if (!value || ["actors", "projects", "themes", "relationships", "sources"].some(function (k) { return !Array.isArray(value[k]) || value[k].length > 10000; })) fail("Expected actors, projects, themes, relationships and sources arrays.");
+      if (!value || ["actors", "projects", "themes", "relationships", "sources", "relationshipTypes"].some(function (k) { return !Array.isArray(value[k]) || value[k].length > 10000; })) fail("Expected actors, projects, themes, relationships, relationshipTypes and sources arrays.");
       value.actors.forEach(function (n) { checkNode(n, "actors"); });
       value.projects.forEach(function (n) { checkNode(n, "projects"); });
       value.themes.forEach(function (n) { checkNode(n, "themes"); });
+      value.relationshipTypes.forEach(checkRelationshipType);
+      var typeIds = new Set(value.relationshipTypes.map(function (t) { return t.id; }));
+      if (typeIds.size !== value.relationshipTypes.length) fail("Duplicate relationship type IDs.");
+      if (!typeIds.has(THEME_LINK) || !typeIds.has(HOST_LINK)) fail("The system relationship types are missing.");
       var nodes = value.actors.concat(value.projects, value.themes);
       var ids = new Set(nodes.map(function (n) { return n.id; }));
       if (ids.size !== nodes.length) fail("Organisation, project and theme IDs must be unique.");
@@ -294,7 +343,7 @@
         if (STATUSES.indexOf(rel.status) === -1) fail("Invalid status.");
         if (rel.status === "published" && (!rel.publishedSnapshot || typeof rel.publishedSnapshot !== "object")) fail("A published record must have a published copy.");
         if (!ids.has(rel.sourceId) || !ids.has(rel.targetId) || rel.sourceId === rel.targetId) fail("A relationship must connect two existing, different records.");
-        if (!has(D.RELATIONSHIP_META, rel.type) || !has(D.CONFIDENCE_META, rel.confidence) || ["weak", "medium", "strong"].indexOf(rel.intensity) === -1) fail("Invalid relationship classification.");
+        if (!typeIds.has(rel.type) || !has(D.CONFIDENCE_META, rel.confidence) || ["weak", "medium", "strong"].indexOf(rel.intensity) === -1) fail("Invalid relationship classification.");
         text(rel.evidence || "", "evidence");
         if (rel.type === HOST_LINK) {
           var s = nodes.find(function (n) { return n.id === rel.sourceId; }), t = nodes.find(function (n) { return n.id === rel.targetId; });
@@ -405,6 +454,39 @@
         label = incoming.name || (incoming.sourceId ? relLabel(next, incoming) : incoming.id);
         action = index < 0 ? "Created" : "Updated";
         recordId = incoming.id; recordType = key;
+      } else if (operation === "upsertRelationshipType") {
+        if (!value || typeof value !== "object" || typeof value.id !== "string") fail("Missing relationship type.");
+        var typeId = value.id.trim() ? value.id.trim() : slug(value.displayName);
+        if (!TYPE_ID_RE.test(typeId)) fail("Invalid relationship type ID.");
+        var existingType = next.relationshipTypes.find(function (t) { return t.id === typeId; });
+        var displayName = String(value.displayName || "").trim();
+        if (!displayName) fail("A relationship type needs a name.");
+        if (existingType) {
+          existingType.displayName = displayName;
+          if (value.color) existingType.color = value.color;
+          action = "Renamed";
+        } else {
+          next.relationshipTypes.push({ id: typeId, displayName: displayName, color: value.color || defaultColor(typeId), isSystem: false });
+          action = "Created";
+        }
+        label = displayName; recordId = typeId; recordType = "relationshipTypes";
+      } else if (operation === "deleteRelationshipType") {
+        var delType = next.relationshipTypes.find(function (t) { return t.id === recordId; });
+        if (!delType) fail("Relationship type not found.");
+        if (delType.isSystem) fail("\"" + delType.displayName + "\" is a system relationship type and cannot be deleted.");
+        var inUse = next.relationships.some(function (r) { return r.type === recordId; });
+        if (inUse) {
+          var mergeInto = value && value.mergeInto;
+          if (!mergeInto || !next.relationshipTypes.some(function (t) { return t.id === mergeInto; })) {
+            fail("\"" + delType.displayName + "\" is used by one or more relationships. Merge it into another type before deleting it.", { code: "in-use", typeId: recordId });
+          }
+          if (mergeInto === recordId) fail("Choose a different relationship type to merge into.");
+          next.relationships.forEach(function (r) {
+            if (r.type === recordId) { r.type = mergeInto; if (r.publishedSnapshot) r.publishedSnapshot.type = mergeInto; }
+          });
+        }
+        next.relationshipTypes = next.relationshipTypes.filter(function (t) { return t.id !== recordId; });
+        label = delType.displayName; recordType = "relationshipTypes"; action = "Deleted";
       } else if (has(deletes, operation)) {
         var dkey = deletes[operation];
         var item = next[dkey].find(function (i) { return i.id === recordId; });
@@ -457,7 +539,7 @@
           input = normalize(value).state;
         }
         validate(input);
-        ["actors", "projects", "themes", "relationships", "sources"].forEach(function (k) { next[k] = clone(input[k]); });
+        ["actors", "projects", "themes", "relationships", "relationshipTypes", "sources"].forEach(function (k) { next[k] = clone(input[k]); });
         next.layout = clone(input.layout);
         action = operation === "reset" ? "Reset" : "Imported";
       } else fail("Unknown operation.");
@@ -504,12 +586,12 @@
         actors: published("actors").map(function (n) { return sanitize(snap(n), "actors"); }),
         projects: published("projects").map(function (n) { return sanitize(snap(n), "projects"); }),
         themes: published("themes").map(function (n) { return sanitize(snap(n), "themes"); }),
-        relationships: relationships, sources: state.sources, updatedAt: state.updatedAt,
+        relationships: relationships, relationshipTypes: state.relationshipTypes, sources: state.sources, updatedAt: state.updatedAt,
       });
     }
 
     return { VERSION: VERSION, defaults: defaults, normalize: normalize, validate: validate, apply: apply, publicData: publicData,
-      describePublish: describePublish, impactOf: impactOf, hasPendingChanges: hasPendingChanges, nameOf: nameOf, relLabel: relLabel, findNode: findNode, managedLinksOf: managedLinksOf };
+      describePublish: describePublish, impactOf: impactOf, hasPendingChanges: hasPendingChanges, nameOf: nameOf, relLabel: relLabel, typeLabel: typeLabel, findNode: findNode, managedLinksOf: managedLinksOf };
   }
 
   return { createCore: createCore, strip: strip, canon: canon, hasPendingChanges: hasPendingChanges };

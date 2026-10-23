@@ -9,7 +9,7 @@
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function replaceArray(target, source) { target.splice.apply(target, [0, target.length].concat(clone(source || []))); }
   function slug(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
-  var state = { version: 3, actors: clone(D.actors), projects: clone(D.projectNodes), themes: clone(D.themeNodes), relationships: clone(D.relationships), sources: clone(D.sources), layout: { nodes: {} }, audit: [] };
+  var state = { version: 4, actors: clone(D.actors), projects: clone(D.projectNodes), themes: clone(D.themeNodes), relationships: clone(D.relationships), relationshipTypes: clone(D.relationshipTypes || []), sources: clone(D.sources), layout: { nodes: {} }, audit: [] };
   function apply(value) {
     state = value;
     state.audit = state.audit || [];
@@ -18,6 +18,7 @@
     replaceArray(D.projectNodes, state.projects);
     replaceArray(D.themeNodes, state.themes);
     replaceArray(D.relationships, state.relationships);
+    replaceArray(D.relationshipTypes, state.relationshipTypes || []);
     replaceArray(D.sources, state.sources);
     replaceArray(D.allNodes, D.actors.concat(D.themeNodes, D.projectNodes));
     D.regions.forEach(function (region) {
@@ -76,6 +77,8 @@
       value.id = value.id || slug(value.type || value.name);
       return change("upsertSource", value);
     },
+    upsertRelationshipType: function (type) { return change("upsertRelationshipType", clone(type)); },
+    deleteRelationshipType: function (id, mergeInto) { return change("deleteRelationshipType", { mergeInto: mergeInto }, id); },
     deleteActor: function (id) { return change("deleteActor", undefined, id); },
     deleteProject: function (id) { return change("deleteProject", undefined, id); },
     deleteTheme: function (id) { return change("deleteTheme", undefined, id); },
@@ -112,7 +115,7 @@
     store.loadError = error.message;
     if (!isAdmin) {
       // Never leave the public page silently showing placeholder data when the real fetch failed.
-      apply({ version: 0, actors: [], projects: [], themes: [], relationships: [], sources: [], audit: [] });
+      apply({ version: 0, actors: [], projects: [], themes: [], relationships: [], relationshipTypes: [], sources: [], audit: [] });
     }
     return false;
   });

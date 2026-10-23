@@ -13,6 +13,13 @@
   var GROUP_COLOR = { research_performer: "#2a78d6", infrastructure: "#1baf7a", industry_gov: "#eb6834", concept: "#5b6472" };
   var COLLECTION_KIND = { actors: "org", projects: "project", themes: "theme" };
   var COLLECTION_WORD = { actors: "Organisation", projects: "Project", themes: "Research theme" };
+  // Live label/colour for a relationship type, including custom ones created at runtime —
+  // never the static D.RELATIONSHIP_META map, which only knows the original seed types.
+  function relType(id) {
+    var hit = (Store.snapshot().relationshipTypes || []).filter(function (t) { return t.id === id; })[0];
+    return hit || { id: id, displayName: (D.RELATIONSHIP_META[id] || {}).label || id, color: null };
+  }
+  function relTypeLabel(id) { return relType(id).displayName; }
   var ui = null;
   var s = {
     selected: null,        // { type: "node"|"edge", id }
@@ -134,10 +141,10 @@
       var g = svgEl("g", { "data-edge": e.id });
       g.appendChild(svgEl("line", { class: cls, x1: a.x, y1: a.y, x2: b.x, y2: b.y }));
       var hit = svgEl("line", { class: "ne-edge-hit" + (dim ? " dim" : ""), x1: a.x, y1: a.y, x2: b.x, y2: b.y, "data-edge-hit": e.id });
-      hit.appendChild(svgEl("title", {}, ((D.RELATIONSHIP_META[e.type] || {}).label || e.type) + ": " + m.byId[e.sourceId].name + " → " + m.byId[e.targetId].name + " (" + e.status + ")"));
+      hit.appendChild(svgEl("title", {}, (relTypeLabel(e.type)) + ": " + m.byId[e.sourceId].name + " → " + m.byId[e.targetId].name + " (" + e.status + ")"));
       g.appendChild(hit);
       if (s.selected && s.selected.type === "edge" && s.selected.id === e.id) {
-        g.appendChild(svgEl("text", { class: "ne-edge-label", x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 5, "text-anchor": "middle" }, (D.RELATIONSHIP_META[e.type] || {}).label || e.type));
+        g.appendChild(svgEl("text", { class: "ne-edge-label", x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 5, "text-anchor": "middle" }, relTypeLabel(e.type)));
       }
       edgeLayer.appendChild(g);
     });
@@ -213,12 +220,12 @@
         "<dt style=\"font-size:10.5px;text-transform:uppercase;color:var(--muted)\">Links (" + rels.length + ")</dt>" +
         (rels.length ? "<ul>" + rels.map(function (e) {
           var other = e.sourceId === n.id ? e.targetId : e.sourceId;
-          return '<li><button class="ne-link" data-ne-edge="' + esc(e.id) + '" type="button">' + esc((D.RELATIONSHIP_META[e.type] || {}).label || e.type) + " → " + esc(ui.nodeName(other)) + "</button> <em>(" + esc(e.status) + ")</em></li>";
+          return '<li><button class="ne-link" data-ne-edge="' + esc(e.id) + '" type="button">' + esc(relTypeLabel(e.type)) + " → " + esc(ui.nodeName(other)) + "</button> <em>(" + esc(e.status) + ")</em></li>";
         }).join("") + "</ul>" : '<p class="help">No links yet.</p>');
       return;
     }
     var e = m.edges.filter(function (x) { return x.id === sel.id; })[0];
-    panel.innerHTML = "<h3>" + esc((D.RELATIONSHIP_META[e.type] || {}).label || e.type) + '</h3><div class="sub">Relationship</div><div>' + ui.statusPill(e) + "</div>" +
+    panel.innerHTML = "<h3>" + esc(relTypeLabel(e.type)) + '</h3><div class="sub">Relationship</div><div>' + ui.statusPill(e) + "</div>" +
       "<dl><dt>From</dt><dd><button class=\"ne-link\" data-ne-node=\"" + esc(e.sourceId) + "\" type=\"button\">" + esc(ui.nodeName(e.sourceId)) + "</button></dd>" +
       "<dt>To</dt><dd><button class=\"ne-link\" data-ne-node=\"" + esc(e.targetId) + "\" type=\"button\">" + esc(ui.nodeName(e.targetId)) + "</button></dd>" +
       "<dt>Strength</dt><dd>" + esc(e.intensity) + "</dd><dt>Confidence</dt><dd>" + ui.confidencePill(e.confidence) + "</dd><dt>Evidence</dt><dd>" + esc(e.evidence || "—") + "</dd></dl>" +
@@ -309,8 +316,8 @@
   function mount(api) {
     ui = api;
     var relSel = $("#neRelType");
-    Object.keys(D.RELATIONSHIP_META).forEach(function (key) {
-      var o = document.createElement("option"); o.value = key; o.textContent = D.RELATIONSHIP_META[key].label; relSel.appendChild(o);
+    (Store.snapshot().relationshipTypes || []).slice().sort(function (a, b) { return a.displayName.localeCompare(b.displayName); }).forEach(function (t) {
+      var o = document.createElement("option"); o.value = t.id; o.textContent = t.displayName; relSel.appendChild(o);
     });
     var svg = $("#neSvg");
     svg.addEventListener("pointerdown", onPointerDown);

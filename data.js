@@ -531,9 +531,30 @@ window.RD_DATA = (function () {
     { name: "Manual stakeholder validation", type: "manual_validation", notes: "Illustrative stand-in for direct validation conversations with ecosystem stakeholders." },
   ];
 
+  // Seed relationship types from RELATIONSHIP_META (used only until the Admin store/backend
+  // supplies the live, editable collection — see admin/dataset-core.js). `relationshipTypes` is
+  // replaced in place at runtime by admin/store.js, same as actors/projectNodes/etc.
+  const relationshipTypes = Object.keys(RELATIONSHIP_META).map((id) => ({
+    id, displayName: RELATIONSHIP_META[id].label, color: RELATIONSHIP_META[id].color || null,
+    isSystem: id === "hosted_by" || id === "shares_research_theme",
+  }));
+
+  // Looks up a relationship type's live display name/color from the current relationshipTypes
+  // collection (which admin/store.js keeps in sync with Admin), not the static RELATIONSHIP_META
+  // seed, so renamed or custom types show correctly everywhere without per-call plumbing.
+  function relTypeMeta(id) {
+    // `relationshipTypes` is mutated in place (splice, not reassignment) by admin/store.js's
+    // apply(), so this closure reference always sees the live collection.
+    const found = relationshipTypes.find((t) => t.id === id);
+    if (found) return found;
+    return { id, displayName: (RELATIONSHIP_META[id] || {}).label || id, color: null, isSystem: false };
+  }
+  function relTypeLabel(id) { return relTypeMeta(id).displayName; }
+
   return {
     TYPE_META, RELATIONSHIP_META, CONFIDENCE_META, STATES, domains,
-    actors, themeNodes, projectNodes, allNodes, relationships,
+    actors, themeNodes, projectNodes, allNodes, relationships, relationshipTypes,
+    relTypeMeta, relTypeLabel,
     regions, sources,
   };
 })();

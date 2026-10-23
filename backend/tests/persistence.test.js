@@ -66,7 +66,7 @@ test("a version-2 file containing archived records is backed up, then archived r
   assert.equal(migrated.status, "draft");
   assert.equal(migrated.name, "Was Archived", "content kept");
   assert.equal(s.publicData().actors.some(a => a.id === "was-archived"), false, "never auto-published");
-  assert.equal(JSON.parse(fs.readFileSync(dataPath, "utf8")).version, 3, "migrated file persisted");
+  assert.equal(JSON.parse(fs.readFileSync(dataPath, "utf8")).version, 4, "migrated file persisted");
   // a second start is a no-op
   assert.equal(createDataStore(dataPath).migration(), null);
 });

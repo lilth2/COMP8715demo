@@ -24,7 +24,7 @@
   function words(text) { return norm(text).split(" ").filter(Boolean); }
   function plural(label) { return /y$/i.test(label) ? label.slice(0, -1) + "ies" : label + "s"; }
   function typeLabel(D, type) { return (D.TYPE_META[type] || {}).label || type; }
-  function relLabel(D, type) { return (D.RELATIONSHIP_META[type] || {}).label || type; }
+  function relLabel(D, type) { return D.relTypeLabel ? D.relTypeLabel(type) : ((D.RELATIONSHIP_META[type] || {}).label || type); }
   function list(names, max) {
     var shown = names.slice(0, max || 8);
     return shown.join(", ") + (names.length > shown.length ? " and " + (names.length - shown.length) + " more" : "");

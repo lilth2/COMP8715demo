@@ -117,6 +117,10 @@
       <section class="page" id="page-relationships">
         <div class="page-head"><div><h1>Relationships</h1><p>Maintain evidence-backed links between organisations, facilities, projects and themes. A relationship can only be published once both ends are published.</p></div><button class="btn primary" id="addRelationshipBtn">+ Add relationship</button></div>
         <div class="panel"><div class="panel-body"><div class="toolbar"><input class="search" id="relSearch" placeholder="Search organisations or relationship type" /><select class="select" id="relStatus"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div><div class="table-wrap"><table><thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th>Confidence</th><th>Evidence</th><th></th></tr></thead><tbody id="relTableBody"></tbody></table></div></div></div>
+        <div class="panel" style="margin-top:16px"><div class="panel-body">
+          <div class="page-head" style="margin-bottom:8px"><div><h2 style="margin:0">Relationship types</h2><p style="margin:4px 0 0">Types used by relationships above. New names typed into the relationship form are added here automatically. The two system types (Hosted by, Shares research theme) cannot be renamed or deleted because the app relies on them structurally.</p></div><button class="btn" id="addRelTypeBtn" type="button">+ Add type</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Name</th><th>ID</th><th>Colour</th><th>System</th><th></th></tr></thead><tbody id="relTypeTableBody"></tbody></table></div>
+        </div></div>
       </section>
 
       <section class="page" id="page-sources">
@@ -160,7 +164,7 @@
         <input type="hidden" id="relId" />
         <div class="field"><label for="relSource">From *</label><select id="relSource" required></select></div>
         <div class="field"><label for="relTarget">To *</label><select id="relTarget" required></select></div>
-        <div class="field"><label for="relType">Relationship type *</label><select id="relType" required></select></div>
+        <div class="field"><label for="relType">Relationship type *</label><input id="relType" list="relTypeOptions" required maxlength="80" placeholder="Type a name — existing types are suggested" /><datalist id="relTypeOptions"></datalist></div>
         <div class="field"><label for="relConfidence">Confidence *</label><select id="relConfidence" required></select></div>
         <div class="field"><label for="relIntensity">Strength *</label><select id="relIntensity" required><option value="weak">Weak</option><option value="medium" selected>Medium</option><option value="strong">Strong</option></select></div>
         <div class="field full"><label for="relEvidence">Evidence or source note</label><textarea id="relEvidence" placeholder="Describe the evidence supporting this relationship"></textarea></div>
@@ -225,6 +229,19 @@
         <div class="field full"><label for="sourceNotes">Notes *</label><textarea id="sourceNotes" required></textarea></div>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="sourceDialog">Cancel</button><button class="btn teal" type="submit">Save source</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="relTypeDialog">
+    <form id="relTypeForm">
+      <div class="modal-head"><h2 id="relTypeDialogTitle">Add relationship type</h2><button class="close" type="button" data-close="relTypeDialog">×</button></div>
+      <div class="form-body"><div class="form-grid">
+        <input type="hidden" id="relTypeOriginalId" />
+        <div class="field"><label for="relTypeName">Display name *</label><input id="relTypeName" required maxlength="120" /></div>
+        <div class="field"><label for="relTypeId">ID</label><input id="relTypeId" placeholder="auto-generated from the name" pattern="[a-z0-9_-]{1,80}" /></div>
+        <div class="field"><label for="relTypeColor">Colour</label><input id="relTypeColor" type="color" /></div>
+      </div></div>
+      <div class="form-actions"><button class="btn" type="button" data-close="relTypeDialog">Cancel</button><button class="btn teal" type="submit">Save type</button></div>
     </form>
   </dialog>
 

@@ -17,6 +17,8 @@
     view: "overview",
     search: "",
     dirFilters: { types: new Set(), states: new Set(), sectors: new Set(), themes: new Set(), collab: new Set() },
+    // Seeded from the static map; init() refreshes this to the live relationshipTypes collection
+    // once real (possibly custom-type) data has loaded, so a new type is included, not hidden.
     netFilters: { relTypes: new Set(Object.keys(D.RELATIONSHIP_META)), theme: null },
     hop: 2,
     centerNodeId: "decarbonisation",
@@ -391,7 +393,7 @@
     return "<h6>Why am I seeing this?</h6><ul style=\"margin:0;padding-left:16px;\">" + reasons.map(function (r) { return "<li>" + r + "</li>"; }).join("") + "</ul>";
   }
   function relationshipWhyHTML(r) {
-    var label = (D.RELATIONSHIP_META[r.type] || {}).label || r.type;
+    var label = D.relTypeLabel(r.type);
     return "<h6>" + esc(label) + "</h6><p>" + esc(nodeName(r.sourceId)) + " → " + esc(nodeName(r.targetId)) + "</p>" +
       "<p>Intensity: " + esc(r.intensity) + " · " + confidenceBadgeHTML(r.confidence) + "</p>" +
       "<p>" + esc(r.evidence || "") + "</p>";
@@ -545,7 +547,7 @@
       }
       g.appendChild(line);
       var mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-      var label = (D.RELATIONSHIP_META[r.type] || {}).label || r.type;
+      var label = D.relTypeLabel(r.type);
       var tw = textWidth(label, 9.5);
       g.appendChild(elSvg("rect", { class: "edge-label-bg", x: mx - tw / 2 - 3, y: my - 7, width: tw + 6, height: 13, rx: 3 }));
       g.appendChild(elSvg("text", { class: "edge-label-text", x: mx, y: my + 3, "text-anchor": "middle" }, label));
@@ -642,7 +644,7 @@
   function renderConnectionDrawer(aId, bId, result) {
     var stepsHTML = result.edges.map(function (r, i) {
       var fromId = result.nodes[i], toId = result.nodes[i + 1];
-      var relLabel = (D.RELATIONSHIP_META[r.type] || {}).label || r.type;
+      var relLabel = D.relTypeLabel(r.type);
       return '<div class="rel-card"><div>' + esc(nodeName(fromId)) + " → <strong>" + esc(relLabel) + "</strong> → " + esc(nodeName(toId)) + "</div>" +
         '<div class="rc-meta-row"><span>Intensity: ' + esc(r.intensity) + "</span>" + confidenceBadgeHTML(r.confidence) + "</div>" +
         '<div class="rc-evidence">' + esc(r.evidence || "") + "</div></div>";
@@ -731,12 +733,12 @@
     var centerOptions = D.allNodes.map(function (n) {
       return '<option value="' + esc(n.id) + '"' + (state.centerNodeId === n.id ? " selected" : "") + ">" + esc(n.name) + "</option>";
     }).join("");
-    var relItems = Object.keys(D.RELATIONSHIP_META);
+    var relTypes = (D.relationshipTypes || []).slice().sort(function (a, b) { return a.displayName.localeCompare(b.displayName); });
     $("#netFilterPanel").innerHTML =
       '<div class="filter-group"><h4>Centre node</h4><select id="netCenterSelect" style="width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--canvas);color:var(--ink);">' +
       centerOptions + "</select></div>" +
       '<div class="filter-group"><h4>Relationship types</h4><div class="chip-row">' +
-      relItems.map(function (t) { return chipHTML(t, D.RELATIONSHIP_META[t].label, state.netFilters.relTypes.has(t)); }).join("") + "</div></div>" +
+      relTypes.map(function (t) { return chipHTML(t.id, t.displayName, state.netFilters.relTypes.has(t.id)); }).join("") + "</div></div>" +
       '<div class="filter-group"><h4>Legend</h4><div class="legend-mini">' +
       '<div class="row"><span class="sw" style="background:var(--group-performer);"></span>Research performer (CRC / university / institute)</div>' +
       '<div class="row"><span class="sw" style="background:var(--group-infrastructure);"></span>Infrastructure (NCRIS facility / precinct)</div>' +
@@ -830,7 +832,7 @@
   }
   function relCardHTML(r, fromId) {
     var otherId = r.sourceId === fromId ? r.targetId : r.sourceId;
-    var relLabel = (D.RELATIONSHIP_META[r.type] || {}).label || r.type;
+    var relLabel = D.relTypeLabel(r.type);
     return '<div class="rel-card"><div><strong>' + esc(relLabel) + "</strong> — " + linkSpan(otherId) + "</div>" +
       '<div class="rc-meta-row"><span>Intensity: ' + esc(r.intensity) + "</span>" + confidenceBadgeHTML(r.confidence) + "</div>" +
       '<div class="rc-evidence">' + esc(r.evidence || "") + "</div></div>";
@@ -1505,6 +1507,9 @@
     switchView(state.view);
   }
   function init() {
+    // Default the network filter to every relationship type actually present in the published
+    // data (seed types plus any custom ones), not just the static seed map.
+    state.netFilters.relTypes = new Set((D.relationshipTypes || []).map(function (t) { return t.id; }));
     wireGlobalUI();
     updateShortlistBadge();
     applyTransform();

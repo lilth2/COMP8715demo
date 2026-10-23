@@ -136,7 +136,7 @@
   function fieldSummary(kind, record) {
     var rows = [];
     if (kind === "rel") {
-      rows.push(["Relationship", ((D.RELATIONSHIP_META[record.type] || {}).label || record.type) + ": " + nodeName(record.sourceId) + " → " + nodeName(record.targetId)]);
+      rows.push(["Relationship", relTypeDisplayName(record.type) + ": " + nodeName(record.sourceId) + " → " + nodeName(record.targetId)]);
       rows.push(["Strength", record.intensity]); rows.push(["Evidence", record.evidence || "—"]);
     } else {
       rows.push(["Name", record.name]);
@@ -314,7 +314,7 @@
       return [nodeName(rel.sourceId), nodeName(rel.targetId), rel.type].join(" ").toLowerCase().indexOf(query) >= 0 && passesStatusFilter(rel, "#relStatus");
     });
     $("#relTableBody").innerHTML = relationships.length ? relationships.map(function (rel) {
-      return "<tr><td><span class=\"record-name\">" + esc(nodeName(rel.sourceId)) + "</span></td><td>" + esc((D.RELATIONSHIP_META[rel.type] || {}).label || title(rel.type)) + "</td><td><span class=\"record-name\">" + esc(nodeName(rel.targetId)) + "</span></td><td>" + statusPill(rel) + "</td><td>" + confidencePill(rel.confidence) + "</td><td><div class=\"record-sub\">" + esc(rel.evidence || "No evidence note") + "</div></td><td>" + lifecycleActionsHTML("rel", rel) + "</td></tr>";
+      return "<tr><td><span class=\"record-name\">" + esc(nodeName(rel.sourceId)) + "</span></td><td>" + esc(relTypeDisplayName(rel.type)) + "</td><td><span class=\"record-name\">" + esc(nodeName(rel.targetId)) + "</span></td><td>" + statusPill(rel) + "</td><td>" + confidencePill(rel.confidence) + "</td><td><div class=\"record-sub\">" + esc(rel.evidence || "No evidence note") + "</div></td><td>" + lifecycleActionsHTML("rel", rel) + "</td></tr>";
     }).join("") : '<tr><td colspan="7" class="empty">No matching relationships.</td></tr>';
   }
   function renderProjects(snapshot) {
@@ -352,6 +352,7 @@
     renderProjects(snapshot);
     renderThemes(snapshot);
     renderRelationships(snapshot);
+    renderRelationshipTypes(snapshot);
     renderSources(snapshot);
     $("#auditList").innerHTML = auditHTML(snapshot.audit, "No changes have been made through the console yet.");
     if (Editor && $("#page-network").classList.contains("active")) Editor.render();
@@ -367,7 +368,56 @@
     $("#themeConfidence").innerHTML = confidenceOptions;
     $("#projectState").innerHTML = option("", "Not specified") + D.STATES.map(function (state) { return option(state.code, state.name + " (" + state.code + ")"); }).join("");
     $("#relConfidence").innerHTML = confidenceOptions;
-    $("#relType").innerHTML = Object.keys(D.RELATIONSHIP_META).map(function (key) { return option(key, D.RELATIONSHIP_META[key].label); }).join("");
+    fillRelationshipTypeOptions();
+  }
+  // The relationship-type field is a free-text combobox: existing types are offered via
+  // <datalist> (autocomplete only, not a restriction), and typing an unused name creates it on
+  // save (dataset-core.js's upsertRelationship / upsertRelationshipType path).
+  function fillRelationshipTypeOptions() {
+    var types = Store.snapshot().relationshipTypes || [];
+    $("#relTypeOptions").innerHTML = types.slice().sort(function (a, b) { return a.displayName.localeCompare(b.displayName); })
+      .map(function (t) { return '<option value="' + esc(t.displayName) + '"></option>'; }).join("");
+  }
+  // Resolve whatever the user typed in the combobox to a type id: match an existing display
+  // name or id case-insensitively, otherwise slugify the typed text into a new id.
+  function resolveRelType(typed) {
+    var text = String(typed || "").trim();
+    var types = Store.snapshot().relationshipTypes || [];
+    var hit = types.filter(function (t) { return t.displayName.toLowerCase() === text.toLowerCase() || t.id === text; })[0];
+    return { id: hit ? hit.id : slugifyType(text), displayName: hit ? hit.displayName : text };
+  }
+  function slugifyType(value) { return String(value || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "relationship_type"; }
+  function relTypeDisplayName(id) {
+    var hit = (Store.snapshot().relationshipTypes || []).filter(function (t) { return t.id === id; })[0];
+    return hit ? hit.displayName : ((D.RELATIONSHIP_META[id] || {}).label || title(id));
+  }
+  function renderRelationshipTypes(snapshot) {
+    var body = $("#relTypeTableBody");
+    if (!body) return;
+    var inUse = {};
+    snapshot.relationships.forEach(function (r) { inUse[r.type] = true; });
+    var types = (snapshot.relationshipTypes || []).slice().sort(function (a, b) { return a.displayName.localeCompare(b.displayName); });
+    body.innerHTML = types.length ? types.map(function (t) {
+      var swatch = '<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:' + esc(t.color || "#aab2c0") + ';vertical-align:middle"></span>';
+      var actions = '<div class="row-actions">';
+      if (!t.isSystem) {
+        actions += '<button class="btn small" data-rel-type-edit="' + esc(t.id) + '">Rename</button>';
+        actions += '<button class="btn small danger" data-rel-type-delete="' + esc(t.id) + '">Delete</button>';
+      }
+      actions += "</div>";
+      return "<tr><td>" + esc(t.displayName) + "</td><td><span class=\"record-sub\">" + esc(t.id) + "</span></td><td>" + swatch + "</td><td>" + (t.isSystem ? '<span class="pill">System</span>' : (inUse[t.id] ? '<span class="pill">In use</span>' : "—")) + "</td><td>" + actions + "</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty">No relationship types yet.</td></tr>';
+  }
+  function openRelType(id) {
+    var type = id ? (Store.snapshot().relationshipTypes || []).filter(function (t) { return t.id === id; })[0] : null;
+    $("#relTypeForm").reset();
+    $("#relTypeDialogTitle").textContent = type ? "Rename relationship type" : "Add relationship type";
+    $("#relTypeOriginalId").value = type ? type.id : "";
+    $("#relTypeName").value = type ? type.displayName : "";
+    $("#relTypeId").value = type ? type.id : "";
+    $("#relTypeId").disabled = Boolean(type);
+    $("#relTypeColor").value = type ? (type.color || "#2a78d6") : "#2a78d6";
+    $("#relTypeDialog").showModal();
   }
   // Every record that can be a relationship end, drafts included: a relationship can be
   // authored before both ends are published, and publishing it names what is still missing.
@@ -417,7 +467,8 @@
     $("#relationshipDialogTitle").textContent = rel ? "Edit relationship" : "Add relationship";
     $("#relId").value = rel ? rel.id : "";
     fillNodeOptions(rel ? rel.sourceId : preset.sourceId, rel ? rel.targetId : preset.targetId);
-    $("#relType").value = rel ? rel.type : (preset.type || "collaborates_with");
+    fillRelationshipTypeOptions();
+    $("#relType").value = relTypeDisplayName(rel ? rel.type : (preset.type || "collaborates_with"));
     $("#relConfidence").value = rel ? rel.confidence : "needs-review";
     $("#relIntensity").value = rel ? rel.intensity || "medium" : "medium";
     $("#relEvidence").value = rel ? rel.evidence || "" : "";
@@ -494,6 +545,7 @@
     $("#addThemeBtn").addEventListener("click", function () { openNew("theme"); });
     $("#addRelationshipBtn").addEventListener("click", function () { openRelationship(); });
     $("#addSourceBtn").addEventListener("click", function () { openSource(); });
+    $("#addRelTypeBtn").addEventListener("click", function () { openRelType(); });
     $("#exportBtn").addEventListener("click", exportData);
 
     document.addEventListener("click", async function (event) {
@@ -508,6 +560,43 @@
           var okS = await askConfirm({ title: "Delete source: " + (src ? src.name : ""), okLabel: "Delete permanently", danger: true, html: "<p>This source category is removed. This cannot be undone.</p>" });
           if (okS === "ok") { await Store.deleteSource(deleteSource.dataset.deleteSource); showToast("Source deleted."); }
         }
+        var editType = event.target.closest("[data-rel-type-edit]");
+        if (editType) openRelType(editType.dataset.relTypeEdit);
+        var deleteType = event.target.closest("[data-rel-type-delete]");
+        if (deleteType) await deleteRelType(deleteType.dataset.relTypeDelete);
+      } catch (error) { await showError(error); }
+    });
+    async function deleteRelType(id) {
+      var snapshot = Store.snapshot();
+      var type = (snapshot.relationshipTypes || []).filter(function (t) { return t.id === id; })[0];
+      if (!type) return;
+      var usedBy = snapshot.relationships.filter(function (r) { return r.type === id; });
+      if (!usedBy.length) {
+        var okD = await askConfirm({ title: "Delete relationship type: " + type.displayName, okLabel: "Delete permanently", danger: true, html: "<p>This relationship type is not used by any relationship. This cannot be undone.</p>" });
+        if (okD === "ok") { await Store.deleteRelationshipType(id); showToast("Relationship type deleted."); }
+        return;
+      }
+      var others = (snapshot.relationshipTypes || []).filter(function (t) { return t.id !== id; });
+      var options = others.map(function (t) { return option(t.id, t.displayName); }).join("");
+      var html = "<p>\"" + esc(type.displayName) + "\" is used by " + usedBy.length + " relationship(s). Choose a type to merge them into before deleting \"" + esc(type.displayName) + "\":</p>" +
+        '<div class="field"><label for="mergeTypeSelect">Merge into</label><select id="mergeTypeSelect">' + options + "</select></div>";
+      var okM = await askConfirm({ title: "Merge and delete: " + type.displayName, okLabel: "Merge and delete", danger: true, html: html });
+      if (okM !== "ok") return;
+      var mergeInto = $("#mergeTypeSelect") ? $("#mergeTypeSelect").value : null;
+      if (!mergeInto) return;
+      await Store.deleteRelationshipType(id, mergeInto);
+      showToast("Merged into \"" + relTypeDisplayName(mergeInto) + "\" and deleted.");
+    }
+    $("#relTypeForm").addEventListener("submit", async function (event) {
+      event.preventDefault();
+      try {
+        var original = $("#relTypeOriginalId").value;
+        var name = $("#relTypeName").value.trim();
+        if (!name) { await showError(new Error("Enter a name.")); return; }
+        var id = original || ($("#relTypeId").value.trim() || slugifyType(name));
+        await Store.upsertRelationshipType({ id: id, displayName: name, color: $("#relTypeColor").value });
+        $("#relTypeDialog").close();
+        showToast(original ? "Relationship type renamed." : "Relationship type created.");
       } catch (error) { await showError(error); }
     });
 
@@ -533,9 +622,15 @@
       event.preventDefault();
       try {
         if ($("#relSource").value === $("#relTarget").value) { await showError(new Error("Choose two different records.")); return; }
+        var typed = $("#relType").value.trim();
+        if (!typed) { await showError(new Error("Enter a relationship type.")); return; }
+        var resolved = resolveRelType(typed);
+        if (!(Store.snapshot().relationshipTypes || []).some(function (t) { return t.id === resolved.id; })) {
+          await Store.upsertRelationshipType({ id: resolved.id, displayName: resolved.displayName });
+        }
         await Store.upsertRelationship({
           id: $("#relId").value, sourceId: $("#relSource").value, targetId: $("#relTarget").value,
-          type: $("#relType").value, confidence: $("#relConfidence").value, intensity: $("#relIntensity").value,
+          type: resolved.id, confidence: $("#relConfidence").value, intensity: $("#relIntensity").value,
           evidence: $("#relEvidence").value.trim(), lastUpdated: new Date().toISOString().slice(0, 10),
         });
         $("#relationshipDialog").close();

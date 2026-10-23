@@ -64,7 +64,7 @@ function findPriorImport(snapshot, fingerprint) {
   return match ? { importedAt: match.importedAt, importedBy: match.importedBy, createdCount: match.createdCount, updatedCount: match.updatedCount } : null;
 }
 
-function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production", feedbackStore, attachmentsDir } = {}) {
+function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore, accountsStore, sessionsStore, environment = "production", feedbackStore, attachmentsDir, dbHealthCheck } = {}) {
   // Two mutually-exclusive auth modes:
   //  - Legacy single-admin (accountsStore not given): one hardcoded account, in-memory sessions
   //    Map, exactly as before — unchanged behaviour for the existing JSON-file deployment story.
@@ -170,6 +170,18 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
           return json(res, 403, { message: "Please sign in from this website." });
         }
         if (!/^application\/json\b/i.test(req.headers["content-type"] || "")) return json(res, 415, { message: "JSON is required." });
+      }
+      // Unauthenticated by design (standard for a health/readiness probe), and deliberately
+      // reveals nothing about data, accounts, or configuration beyond "is this process up and can
+      // it reach its database" -- no counts, no version strings beyond the app's own package
+      // version, no environment secrets.
+      if (url.pathname === "/api/health" && req.method === "GET") {
+        const health = { status: "ok", storage: dbHealthCheck ? "postgres" : "json-file", environment: environment };
+        if (dbHealthCheck) {
+          try { await dbHealthCheck(); health.database = "connected"; }
+          catch (error) { health.status = "degraded"; health.database = "unreachable"; return json(res, 503, health); }
+        }
+        return json(res, 200, health);
       }
       if (url.pathname === "/api/session" && req.method === "GET") {
         return json(res, 200, current ? { authenticated: true, username: current.username, role: current.role || "admin", environment: current.environment || environment, expiresAt: current.expires } : { authenticated: false });
@@ -372,6 +384,14 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
       res.end(req.method === "HEAD" ? undefined : await fs.promises.readFile(path.join(ROOT, file)));
     } catch (error) {
       if (!error.status) return json(res, 500, { message: "Unable to complete the request." });
+      // A 403 is a meaningful security signal (an authenticated account hit a role check it
+      // didn't pass, e.g. an ordinary account trying to triage someone else's feedback) worth
+      // recording — unlike a bare 401 on every logged-out page view, which would make the audit
+      // log mostly noise. accountsStore.audit() is reused here (it is already a generic
+      // actor/action/record audit_log writer, not accounts-specific despite the module name).
+      if (error.status === 403 && current && accountsStore) {
+        accountsStore.audit({ actor: current.username, action: "Permission denied: " + url.pathname, result: "denied", recordType: "permission" }).catch(() => {});
+      }
       // Pass through the structured extras some core errors carry (describePublish's `blockers`,
       // deleteRelationshipType's `typeId`, bulkUpsert's `plan`) so the admin UI's error handling
       // — which already reads error.blockers etc. — gets real data in backend mode, not just in
@@ -417,7 +437,7 @@ if (require.main === module) {
   const environment = (process.env.APP_ENVIRONMENT || "production").toLowerCase();
   if (environment !== "production" && environment !== "uat") throw new Error("APP_ENVIRONMENT must be \"production\" or \"uat\" if set.");
   (async () => {
-    let store, accountsStore, sessionsStore, feedbackStore;
+    let store, accountsStore, sessionsStore, feedbackStore, dbHealthCheck;
     const attachmentsDir = process.env.ATTACHMENTS_DIR || path.join(__dirname, ".private", "attachments");
     if (usingDatabase) {
       const { Pool } = require("pg");
@@ -431,11 +451,12 @@ if (require.main === module) {
       accountsStore = createAccountsStore(pool, environment);
       sessionsStore = createSessionsStore(pool, SESSION_TTL);
       feedbackStore = createFeedbackStore(pool);
+      dbHealthCheck = () => pool.query("SELECT 1");
       console.log("Using PostgreSQL storage and multi-account auth (DATABASE_URL is set). Environment: " + environment + ".");
     } else {
       console.log("Using single-file JSON storage and single-admin auth (DATA_PATH). Set DATABASE_URL to use PostgreSQL + multi-account auth instead.");
     }
-    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment, feedbackStore, attachmentsDir });
+    const app = createApp({ account, secureCookies, publicOrigin, allowedOrigins, dataPath: process.env.DATA_PATH || path.join(__dirname, ".private", "dataset.json"), store, accountsStore, sessionsStore, environment, feedbackStore, attachmentsDir, dbHealthCheck });
     app.listen(port, host, () => console.log("Directory server listening on " + host + ":" + port));
   })().catch(error => { console.error("Failed to start: " + error.message); process.exit(1); });
 }

@@ -113,10 +113,13 @@ function createAccountsStore(pool, environment) {
     // Account-management actions (create/disable/enable/password-change) happen outside the
     // dataset-core.js state tree that the regular audit_log writes go through (backend/db/pg-
     // store.js), so they need their own direct write here to stay traceable to the acting account.
-    async audit({ actor, action, targetAccountId, targetUsername, result }) {
+    // Also reused by server.js as a generic actor/action audit writer for permission-denied events
+    // that aren't about an account at all (hence `recordType` defaulting to 'account' but being
+    // overridable).
+    async audit({ actor, action, targetAccountId, targetUsername, result, recordType }) {
       await pool.query(
-        `INSERT INTO audit_log (actor, action, record_type, record_id, label, result) VALUES ($1,$2,'account',$3,$4,$5)`,
-        [actor, action, targetAccountId || null, targetUsername || null, result || "success"]
+        `INSERT INTO audit_log (actor, action, record_type, record_id, label, result) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [actor, action, recordType || "account", targetAccountId || null, targetUsername || null, result || "success"]
       );
     },
   };

@@ -1,0 +1,249 @@
+# User Acceptance Testing (UAT) guide
+
+This document covers: starting the UAT environment, creating/enabling/disabling the stakeholder's
+account, a short operating guide for her, a 10–15 minute test task list, how to recover from a
+problem during testing, and what to do once testing is finished.
+
+**Status as of this document**: code complete and locally verified against a real, disposable
+PostgreSQL database (see the final delivery report, `docs/DELIVERY_REPORT.md`, for the precise
+scope). **No UAT environment has been deployed to a live/reachable URL yet** — that step needs a
+hosting decision and credentials that have not been provided this round. Nothing in this document
+should be read as "already live." The specific open day/date for opening access has also not been
+set; nothing below assumes or invents one.
+
+---
+
+## 1. Role and permission matrix
+
+| Capability | Stakeholder (UAT role) | Administrator (UAT role) | Enforced |
+| --- | --- | --- | --- |
+| View directory, search, filter (draft + published) | ✅ | ✅ | Server-side, every `/api/admin/*` route checks a valid session |
+| Create/edit drafts (organisations, projects, themes, relationships) | ✅ | ✅ | `/api/admin/action` |
+| Bulk import (form, paste, .xlsx, .csv) — preview, confirm, commit | ✅ | ✅ | `/api/admin/import/*` |
+| Batch publish / withdraw / delete / field-edit with impact preview | ✅ | ✅ | `/api/admin/action` (`bulkAction` operation) |
+| Create, rename, merge-then-delete relationship types | ✅ | ✅ | `/api/admin/action` |
+| Use the Network editor | ✅ | ✅ | same auth gate as all admin pages |
+| Publish / withdraw / delete individual records | ✅ | ✅ | same |
+| Submit feedback (bug/suggestion), view own feedback | ✅ | ✅ | `/api/feedback` |
+| View **all** feedback in the environment, change status, export | ✅ | ✅ | `/api/feedback`, role checked server-side (`admin`/`stakeholder` are both "full visibility" — see note below) |
+| Create/disable/enable other accounts, reset passwords | ✅ | ✅ | `/api/admin/accounts/*` |
+| Access production data or a production server process | ❌ — structurally impossible | ❌ — structurally impossible | A UAT server process only ever connects to the UAT `DATABASE_URL`; there is no code path that reaches a different database |
+| Server/SSH login, database password, API keys, other projects' resources | ❌ | ❌ | Not part of this application at all |
+
+**Why the stakeholder's role has full capability, not a cut-down one**: per the agreed brief, her
+UAT role is meant to match the environment's own admin — there is no separate, narrower
+"stakeholder" permission set to design or maintain. What makes UAT safe to hand to her is **not**
+a reduced permission list; it is that the UAT deployment is a **completely separate database and
+server process** from production (see §2). Every capability above is still checked by the server
+on every request — the admin UI simply does not render a button for something the server would
+reject; it is not relying on hiding buttons as the actual control.
+
+If, after testing, you want a narrower role for a future tester (e.g. view/comment only, no
+delete), that needs a new role value, a server-side check (`feedback-pg.js`'s `canSeeAll()` and the
+account-management routes in `backend/server.js` are where the current `admin`/`stakeholder`
+equivalence lives), and no current code path has been held back from that — it would be an
+addition, not a rework.
+
+---
+
+## 2. Environment startup and health check
+
+The UAT deployment is a **separate PostgreSQL database and a separate running copy of the
+backend** from whatever production ends up being. It is not a flag on the same server.
+
+### 2.1 Starting the environment (operator steps)
+
+```powershell
+# 1. Point at the UAT database (never production's).
+$env:DATABASE_URL = "postgres://USER:PASSWORD@HOST:5432/UAT_DBNAME"
+
+# 2. Apply the schema (safe to re-run; never drops or overwrites data).
+npm run db:migrate
+
+# 3. Start the backend in UAT mode.
+$env:APP_ENVIRONMENT = "uat"
+npm start
+```
+
+See `backend/.env.uat.example` for the full list of environment variables a real deployment needs
+(origin/CORS, attachments directory, etc.).
+
+### 2.2 Health check
+
+```
+GET http://YOUR-UAT-BACKEND/api/health
+```
+
+Expected: `{"status":"ok","storage":"postgres","environment":"uat","database":"connected"}`. If
+`database` is `"unreachable"` the response is HTTP 503 — the backend is up but cannot reach
+Postgres; check `DATABASE_URL` and that the database is reachable from where the backend is
+running. This endpoint needs no login and is safe to point a platform's health-check probe at.
+
+### 2.3 Visual confirmation
+
+Every page (public site and admin console) shows a persistent orange banner reading **"USER
+ACCEPTANCE TESTING — this is an isolated test environment, not production"** whenever
+`APP_ENVIRONMENT=uat`. If you do not see this banner, you are not looking at the UAT environment —
+stop and check which URL/environment variable set is actually running before testing destructive
+actions.
+
+---
+
+## 3. Creating, enabling and disabling the stakeholder's account
+
+### 3.1 One-time creation (operator steps, after §2.1)
+
+```powershell
+npm run setup:accounts -- --admin-username admin --stakeholder-username jane.stakeholder
+```
+
+- Creates an `admin` account (for you/the dev team) and a `stakeholder` account (for her) in the
+  **UAT** database only.
+- Each account's initial password is generated randomly and printed to the terminal **once** — it
+  is never written to a file or logged anywhere. Copy it immediately and send it to her through a
+  secure channel (not committed to this repo, not pasted into a public chat).
+- Re-running the command is safe: an existing username is left untouched, not overwritten.
+- You can set a specific password instead of a generated one with `--stakeholder-password "..."`
+  if you need to (e.g. matching a password manager entry you're handing her), but a generated one
+  is preferred.
+
+### 3.2 Giving her access
+
+Once a real UAT URL exists (not yet, per the status note at the top of this document), give her:
+
+1. The UAT URL (e.g. `https://uat.your-domain.example/admin/login.html`).
+2. Her username.
+3. Her initial password, through a secure channel.
+4. The quick-start guide in §4 and the task list in §5.
+
+Tell her explicitly this is an isolated test environment — nothing she does here reaches the real
+public site.
+
+### 3.3 Changing her password (if she wants to, or you need to reset it)
+
+In the admin console: **Accounts** → find her row → **Set password**. This immediately signs out
+any of her existing sessions, so she will need to log in again with the new password. There is no
+self-service "forgot password" flow — a password reset is always done by another admin/stakeholder
+account through this screen.
+
+### 3.4 Disabling her account after testing ends
+
+In the admin console: **Accounts** → find her row → **Disable**. This:
+
+- Immediately invalidates every session she currently has open (she is logged out everywhere, not
+  just unable to log in again).
+- Prevents her from logging in again until re-enabled.
+- Does **not** delete her account or anything she created — her drafts, published records, and
+  feedback all remain exactly as they were.
+
+To fully re-open testing later, click **Enable** on the same row (same password as before, unless
+you also reset it).
+
+---
+
+## 4. Quick-start guide for the stakeholder
+
+1. Open the UAT URL you were given and log in with your username and password.
+2. You'll see an orange "USER ACCEPTANCE TESTING" banner at the top of every page — that confirms
+   you're in the test environment, not the real public site.
+3. The left-hand menu has everything: **Dashboard**, **Network editor**, **Bulk import**,
+   **Organisations / Projects / Research themes / Relationships** (tables you can edit),
+   **Feedback**, **Accounts**, and **Change history**.
+4. New or edited records start as **Draft** — nothing you save is visible anywhere else until you
+   click **Publish** on it (and confirm). Feel free to create, edit and experiment; nothing you do
+   as a draft is visible to anyone else, and even published changes only affect this isolated test
+   copy of the data, never the real site.
+5. If anything looks wrong, confusing, or breaks — click **Report an issue** at the top of any
+   admin page. Fill in what happened; a screenshot is optional but helpful. You'll get a feedback
+   number back.
+6. You can see all feedback submitted (yours and anyone else's) under the **Feedback** menu item,
+   and check its status there later.
+
+---
+
+## 5. 10–15 minute test task list
+
+Suggested order, roughly 1–2 minutes each:
+
+1. **Look around**: open the public directory (link in the top bar) and browse a couple of
+   organisations and the Ecosystem Network graph.
+2. **Add one organisation** by hand (Organisations → + Add organisation), save it as a draft.
+3. **Publish it**, confirm it now appears on the public directory tab (it may need a refresh).
+4. **Withdraw it** again, confirm it disappears from public but the record itself still exists in
+   the admin table as a draft.
+5. **Bulk import**: go to Bulk import, type two or three rows directly into the table (or paste a
+   small block copied from a spreadsheet), preview, and confirm the import. Check the new records
+   appear as drafts.
+6. **Try a custom relationship type**: open or create a relationship and type a new relationship
+   type name that isn't in the suggested list — confirm it saves and shows up correctly.
+7. **Select multiple records** (checkboxes in a table) and try a batch action — e.g. batch publish
+   two records at once, or batch-edit a field — and read the confirmation dialog before confirming.
+8. **Submit feedback**: click "Report an issue", describe anything you noticed (a bug, something
+   confusing, or a suggestion), optionally attach a screenshot, and submit. Note the feedback
+   number you get back.
+9. **Check your feedback**: go to the Feedback page and confirm your submission appears with the
+   right details.
+10. (Optional, if time allows) Try the same flow on your phone's browser to see how it behaves on
+    mobile.
+
+There is no expectation of finding zero problems — the goal is to confirm the core flows work for
+you and to capture anything that doesn't, through the feedback form itself.
+
+---
+
+## 6. Data recovery and troubleshooting
+
+### 6.1 "I think I broke something" / data looks wrong
+
+Nothing is unrecoverable. An operator can:
+
+```powershell
+$env:DATABASE_URL = "postgres://USER:PASSWORD@HOST:5432/UAT_DBNAME"
+node backend/db/snapshot.js ./uat-backups   # take a snapshot of the current (possibly broken) state first, just in case
+node backend/db/restore.js <a-previous-snapshot-file.json> --confirm
+```
+
+`restore.js` always takes a fresh safety backup of whatever is currently in the database **before**
+restoring anything, and — unless `--include-feedback` is explicitly passed — it never touches the
+`feedback` table, so restoring to an earlier data snapshot will not delete feedback she submitted
+in the meantime.
+
+### 6.2 "The page won't load" / "I got logged out unexpectedly"
+
+- Check `GET /api/health` first (§2.2) — if the database is unreachable, that's a backend/hosting
+  problem, not something wrong with her account.
+- Sessions last 8 hours; logging in again is expected after that.
+- If her account was disabled by an operator (§3.4), she will see a login failure — check the
+  Accounts page to confirm her status.
+
+### 6.3 "I submitted feedback but don't see it" / "I think I submitted it twice"
+
+Resubmitting the exact same report (e.g. a double-click) is handled automatically — the server
+recognises the same submission and does not create a duplicate. If a submission genuinely fails
+(e.g. a network blip), the form keeps what she typed so she can just try again; nothing is lost
+silently.
+
+### 6.4 Known limitations to mention to her up front
+
+- This is a test environment with test data — see the Excel import report
+  (`docs/EXCEL_IMPORT_REPORT.md`) for exactly what was imported and what's still incomplete
+  (several fields were deliberately left as "not disclosed" or placeholder-classified rather than
+  guessed).
+- No promise is made that it is bug-free — that is exactly what this testing round is for.
+
+---
+
+## 7. After testing ends: feedback triage and access revocation
+
+1. **Review feedback**: admin console → Feedback page. Filter by status, open each item, read the
+   detail (including any screenshot), and change its status as you work through it (New →
+   Investigating → Fixed → Ready for retest → Closed). Every status change is recorded with who
+   made it and when (visible in that feedback item's history).
+2. **Export a copy** if you want one outside the system: Feedback page → Export CSV.
+3. **Revoke her access**: admin console → Accounts → her row → **Disable**. This immediately signs
+   her out everywhere and blocks further login, without deleting anything she created.
+4. **Decide what to do with the UAT data**: it can be left as-is for reference, snapshotted
+   (`db:snapshot`) and kept, or the UAT database can eventually be dropped once no longer needed —
+   none of this affects production, since they are separate databases.
+5. If you plan a second round of testing later, you do not need to recreate her account from
+   scratch — just **Enable** it again (optionally with a new password via **Set password**).

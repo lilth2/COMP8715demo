@@ -19,9 +19,9 @@ The setup command creates one initial administrator, with username `admin` and a
 
 ## Repository structure
 
-- `admin/`: administrator pages (`index.html`, `console.js`, `network-editor.js`), login, authentication adapter, client stores, and `dataset-core.js`, the shared rules engine.
-- `backend/`: account setup, authentication server, persistence wrapper and tests.
-- `docs/`: deployment documentation.
+- `admin/`: administrator pages (`index.html`, `console.js`, `network-editor.js`, `bulk-import.js`, `bulk-actions.js`, `accounts.js`, `feedback.js`), login, authentication adapter, client stores, and `dataset-core.js`, the shared rules engine (also the core all bulk-import/bulk-action logic lives in).
+- `backend/`: server, account setup (both single-admin and multi-account/`accounts-pg.js`), sessions, feedback tracker, persistence wrapper, `backend/db/` (PostgreSQL schema/migration/snapshot/restore), `backend/import/` (dependency-free `.xlsx`/`.csv` parsing and field mapping), and tests.
+- `docs/`: deployment (`DEPLOYMENT.md`), UAT (`UAT.md`), and the real-data import report (`EXCEL_IMPORT_REPORT.md`).
 - `index.html`, `app.js`, `data.js`, `ai-engine.js`: public directory.
 - `admin.html`, `admin-login.html`: small redirects for existing bookmarks.
 
@@ -110,4 +110,56 @@ GitHub Pages currently enables the explicitly requested **initial-account demons
 
 For real access control, deploy the Node.js backend, set `apiBaseUrl` in `site-config.js` to its HTTPS origin and disable `demoAccount.enabled`. Backend mode takes precedence whenever the API address is configured. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-This version uses one administrator and a JSON file. Use one backend instance with persistent storage and backups. A production database, granular roles and an approval workflow can be added in a later sprint.
+This version uses one administrator and a JSON file **by default**. Setting the `DATABASE_URL` environment variable switches the whole backend to PostgreSQL with multi-account auth (see the next section) — the JSON-file mode above remains fully supported and unchanged for anyone not using it.
+
+## PostgreSQL, multi-account auth, bulk import and feedback tracking
+
+Setting `DATABASE_URL` enables a second storage/auth mode, used for real-data import and
+stakeholder UAT testing:
+
+- **Accounts and roles**: real accounts (not one hardcoded admin) with `admin` or `stakeholder`
+  roles, both with equivalent full capability — see [docs/UAT.md](docs/UAT.md) for the role matrix
+  and why. Create accounts with `npm run setup:accounts`, manage them from the admin console's
+  **Accounts** page (list, create, disable/enable, reset password — each immediately revokes that
+  account's existing sessions).
+- **Environments**: `APP_ENVIRONMENT=production` or `uat`. A server process only ever queries
+  accounts/data for its own environment; a UAT account cannot authenticate against a
+  production-environment server process. UAT mode shows a persistent "USER ACCEPTANCE TESTING"
+  banner on every page.
+- **Bulk admin input** (Admin > **Bulk import**): type or paste rows directly into a table
+  (including pasting a rectangular block copied from Excel), or upload a `.xlsx`/UTF-8 `.csv`
+  file with sheet selection and column mapping. Every import runs through
+  preview (per-row new/update/skip/error counts) → confirm → commit, is all-or-nothing (a row
+  error blocks the whole batch), defaults every imported record to Draft, and records
+  provenance (file fingerprint, sheet, row numbers, batch) so re-uploading the identical file is
+  detected and refused rather than creating duplicates.
+- **Batch admin actions**: select multiple existing records in any table (checkboxes) and
+  publish / withdraw / delete / edit-a-field together, with an aggregated impact preview (how many
+  are published, which relationships/references are affected) before confirming. Batch field edits
+  are restricted to an explicit per-collection allowlist, never identity fields like `id` or
+  `status`.
+- **Custom relationship types**: the relationship-type field is a free-text combobox with
+  suggestions from existing types everywhere it appears (single-record form, Network editor, bulk
+  import) — not a fixed dropdown. Types have a stable ID and an independently editable display
+  name and colour, managed from the Relationships page (create, rename, merge-then-delete). The
+  two types the app relies on structurally (`hosted_by`, `shares_research_theme`) cannot be
+  renamed or deleted.
+- **Feedback tracker** (any page, "Report an issue" button once logged in): bug/suggestion
+  submissions with repro steps, expected/actual result, related page/record, and an optional
+  screenshot (stored outside any public/static directory, served only to an authorised viewer).
+  Submission is idempotent (a double-click or retried request never creates a duplicate) and
+  preserves the form's content if it fails. `admin`/`stakeholder` accounts see and triage all
+  feedback in their environment (status: New/Investigating/Fixed/Ready for retest/Closed, with a
+  full change history, and CSV export); an ordinary account would see only its own.
+- **Optimistic concurrency**: every record carries a version; a concurrent edit that already
+  changed a record is rejected with a 409 conflict and a clear message, instead of silently
+  overwriting it.
+- **Backups**: `npm run db:snapshot` / `npm run db:restore` for the Postgres path (restore always
+  takes a fresh safety backup first, and never touches submitted feedback unless explicitly told
+  to). See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) §7.
+- **Health check**: `GET /api/health` (no login required) reports process/storage/database status.
+
+See [docs/UAT.md](docs/UAT.md) for the full stakeholder testing guide, and
+[docs/EXCEL_IMPORT_REPORT.md](docs/EXCEL_IMPORT_REPORT.md) /
+[backend/import/real-data/README.md](backend/import/real-data/README.md) for how the real
+organisation-relationship Excel dataset was mapped and imported.

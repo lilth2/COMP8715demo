@@ -4,12 +4,14 @@ This document covers: starting the UAT environment, creating/enabling/disabling 
 account, a short operating guide for her, a 10–15 minute test task list, how to recover from a
 problem during testing, and what to do once testing is finished.
 
-**Status as of this document**: code complete and locally verified against a real, disposable
-PostgreSQL database (see the final delivery report, `docs/DELIVERY_REPORT.md`, for the precise
-scope). **No UAT environment has been deployed to a live/reachable URL yet** — that step needs a
-hosting decision and credentials that have not been provided this round. Nothing in this document
-should be read as "already live." The specific open day/date for opening access has also not been
-set; nothing below assumes or invents one.
+**Status as of this document**: code complete, CI-verified (122/122 tests passing against a real,
+disposable PostgreSQL database in GitHub Actions). **Hosting is decided** (Neon.tech for Postgres,
+Render.com for the backend — see §2.1) **but the actual accounts/deployment have not been created
+yet** — that needs you to sign up for both (free tier, no card, per the research behind this
+decision) and hand over the resulting connection string, since account creation needs your own
+identity/email. Nothing in this document should be read as "already live" until §2.1's steps are
+actually done and the health check in §2.3 has been run against the real URL. The specific open
+day/date for opening access has also not been set; nothing below assumes or invents one.
 
 ---
 
@@ -51,7 +53,44 @@ addition, not a rework.
 The UAT deployment is a **separate PostgreSQL database and a separate running copy of the
 backend** from whatever production ends up being. It is not a flag on the same server.
 
-### 2.1 Starting the environment (operator steps)
+**Chosen hosting (this round)**: Neon.tech for the UAT Postgres (genuinely free tier, no
+expiry — unlike some competitors' free databases, which auto-delete after 30 days), Render.com
+for the backend (free tier Node web service). Both are separate accounts/projects from anything
+used for any other project (e.g. not the COMP4020 coursework's Fly.io app).
+
+### 2.1 One-time provisioning (operator steps)
+
+1. **Neon**: create a project, create a database inside it (any name, e.g. `uat`), copy its
+   connection string (Neon gives you one with `?sslmode=require` already in it — `pg`/node-postgres
+   parses that automatically, no extra SSL config needed in this codebase).
+2. **Render**: connect this GitHub repo, deploy using the included `render.yaml` Blueprint (New →
+   Blueprint → select this repo) — it creates one free Node web service and defines the right env
+   var names, but deliberately leaves `DATABASE_URL`, `PUBLIC_ORIGIN` and `ALLOWED_ORIGINS` blank
+   (`sync: false`) so no real connection string or domain has to be committed to this public repo.
+   After the first deploy:
+   - Render dashboard → this service → **Environment** → paste the Neon connection string into
+     `DATABASE_URL`.
+   - Set `PUBLIC_ORIGIN` to this exact service's own `https://<service-name>.onrender.com` URL
+     (shown at the top of the service's dashboard page).
+   - Set `ALLOWED_ORIGINS` to the UAT frontend's origin(s).
+   - Save — Render redeploys automatically with the new values.
+3. **Apply the schema** once, from any machine that can reach the Neon database (your own machine
+   is fine — this is a one-time migration, not something that needs to run on Render itself):
+   ```powershell
+   $env:DATABASE_URL = "<the Neon connection string>"
+   npm run db:migrate
+   ```
+
+Render's free web service has **no persistent local disk** — anything written to it (temp files,
+a local SQLite/JSON file) is lost on the next restart, redeploy, or scale-to-zero. This app does
+not rely on local disk for anything a user depends on: feedback screenshots are stored as bytes
+directly in Postgres (`feedback.screenshot_data`), not on disk, specifically so they survive this.
+The free web service also spins down after 15 minutes of no traffic and takes roughly a minute to
+wake back up on the next request — expected behaviour, not a fault, during idle UAT periods.
+
+### 2.2 Starting the environment manually (for local testing of the UAT config before relying on Render)
+
+(This subsection is for local verification only — the live deployment itself runs on Render per §2.1 above.)
 
 ```powershell
 # 1. Point at the UAT database (never production's).
@@ -65,12 +104,9 @@ $env:APP_ENVIRONMENT = "uat"
 npm start
 ```
 
-See `backend/.env.uat.example` for the full list of environment variables a real deployment needs
-(origin/CORS, etc.). Feedback screenshots are stored as bytes directly in Postgres, not on the
-server's local disk — this matters on a free-tier host with no persistent disk (e.g. Render's free
-web service), where anything written to the local filesystem is lost on the next restart/redeploy.
+See `backend/.env.uat.example` for the full list of environment variables a real deployment needs.
 
-### 2.2 Health check
+### 2.3 Health check
 
 ```
 GET http://YOUR-UAT-BACKEND/api/health
@@ -81,7 +117,7 @@ Expected: `{"status":"ok","storage":"postgres","environment":"uat","database":"c
 Postgres; check `DATABASE_URL` and that the database is reachable from where the backend is
 running. This endpoint needs no login and is safe to point a platform's health-check probe at.
 
-### 2.3 Visual confirmation
+### 2.4 Visual confirmation
 
 Every page (public site and admin console) shows a persistent orange banner reading **"USER
 ACCEPTANCE TESTING — this is an isolated test environment, not production"** whenever
@@ -218,7 +254,7 @@ in the meantime.
 
 ### 6.2 "The page won't load" / "I got logged out unexpectedly"
 
-- Check `GET /api/health` first (§2.2) — if the database is unreachable, that's a backend/hosting
+- Check `GET /api/health` first (§2.3) — if the database is unreachable, that's a backend/hosting
   problem, not something wrong with her account.
 - Sessions last 8 hours; logging in again is expected after that.
 - If her account was disabled by an operator (§3.4), she will see a login failure — check the

@@ -1,0 +1,35 @@
+# Render.com Blueprint for the UAT backend ONLY (see docs/UAT.md). Deploying this creates a
+# single free-tier Node web service; it does not create a database here (the UAT Postgres is
+# Neon.tech, provisioned separately and pasted in as a secret below) and it does not touch
+# production in any way — this service is its own independent app, its own URL, its own env vars.
+#
+# To use: render.com -> New -> Blueprint -> point at this repo. After the first deploy, fill in
+# the two `sync: false` values in the Render dashboard (Environment tab) -- they are deliberately
+# left blank here so no real connection string or domain ever has to be committed to this
+# public repo.
+services:
+  - type: web
+    name: comp8715demo-uat-backend
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENVIRONMENT
+        value: uat
+      - key: HOST
+        value: 0.0.0.0
+      # Paste the Neon UAT database's connection string here after creating it (Section 2 of
+      # docs/UAT.md). Never the same database/connection string as production.
+      - key: DATABASE_URL
+        sync: false
+      # Set to this exact service's own https://<service>.onrender.com URL once Render assigns
+      # it (visible at the top of this service's dashboard page after the first deploy).
+      - key: PUBLIC_ORIGIN
+        sync: false
+      # The UAT frontend's origin(s), comma-separated, e.g. https://lilth2.github.io — not
+      # production's origin.
+      - key: ALLOWED_ORIGINS
+        sync: false

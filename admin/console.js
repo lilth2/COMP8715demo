@@ -772,13 +772,19 @@
       // until it picks its own password (backend/server.js blocks every /api/admin/* and
       // /api/feedback route for such a session). The dialog has no close/cancel — it is not
       // optional, and it does not return control to the rest of init() until it resolves.
+      // Store.ready's very first fetch (admin/store.js, fired at script-load time, before this
+      // function runs) hit that same 403 if the session still required a password change at that
+      // moment — so the caller must re-fetch via Store.reload() once the change succeeds, not
+      // trust the now-stale, already-failed Store.ready promise.
+      var passwordWasChanged = false;
       if (session.mustChangePassword) {
         await forcePasswordChange();
+        passwordWasChanged = true;
       }
-      return true;
+      return { allowed: true, passwordWasChanged: passwordWasChanged };
     } catch (error) {
       window.location.replace("login.html");
-      return false;
+      return { allowed: false, passwordWasChanged: false };
     }
   }
   $("#logoutBtn").addEventListener("click", async function () {
@@ -788,14 +794,18 @@
       window.location.replace("login.html");
     } catch (error) { showToast(error.message, true); this.disabled = false; }
   });
-  requireLogin().then(async function (allowed) {
-    if (!allowed) return;
+  requireLogin().then(async function (result) {
+    if (!result.allowed) return;
     if (window.RD_ADMIN_AUTH.isDemo()) {
       $(".notice").textContent = "Demo mode: changes are saved only in this browser (localStorage) and are visible only to this browser on this site. They are not shared with other visitors, browsers or devices. The draft/publish workflow still applies. This login does not secure real data.";
       $(".side-note").innerHTML = "<strong>Demo workspace</strong>Saved in this browser only. Export JSON to keep a copy before clearing browser data.";
       $("#page-history .page-head p").textContent = "Browser-local history of changes to the demonstration dataset.";
     }
-    if (!await Store.ready) {
+    // If the password was just changed, Store.ready's own first fetch already failed with a 403
+    // (it ran before the forced-change dialog resolved) — reload instead of trusting that stale
+    // rejection, so the console actually loads once the account can reach real admin routes.
+    var dataLoaded = result.passwordWasChanged ? await Store.reload() : await Store.ready;
+    if (!dataLoaded) {
       document.body.classList.remove("auth-pending");
       $(".shell").style.display = "none";
       showToast(Store.loadError || "Unable to load administrator data. Please reload the page.", true);

@@ -52,6 +52,9 @@ test("PostgreSQL store: migration, import reconciliation, restart persistence, a
   const core = createCore(loadD());
   const seedState = core.defaults();
   const pool = new Pool({ connectionString });
+  // See regression-consistency.test.js for why this listener is needed (CI-only teardown race
+  // between embedded-postgres shutdown and pool.end(), not a mask for a real failure).
+  pool.on("error", () => {});
   // node:test runs `after` hooks in registration order, so the pool must be closed (and thus
   // stop issuing queries) strictly before the database server itself is stopped underneath it.
   t.after(async () => {

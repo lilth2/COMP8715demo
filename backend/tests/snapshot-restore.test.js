@@ -25,6 +25,9 @@ test("snapshot + restore: recovers deleted records, preserves feedback by defaul
   const connectionString = `postgres://test:test@127.0.0.1:${port}/rd_snapshot_test`;
 
   const pool = new Pool({ connectionString });
+  // See regression-consistency.test.js for why this listener is needed (CI-only teardown race
+  // between embedded-postgres shutdown and pool.end(), not a mask for a real failure).
+  pool.on("error", () => {});
   t.after(async () => { await pool.end(); await pg.stop(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
   const { migrate } = require("../db/migrate");

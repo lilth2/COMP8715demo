@@ -446,6 +446,12 @@ if (require.main === module) {
       const { createSessionsStore } = require("./sessions-pg");
       const { createFeedbackStore } = require("./feedback-pg");
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      // node-postgres requires an 'error' listener on a long-lived Pool: an idle client losing its
+      // connection (a network blip, the database restarting) emits an 'error' event that is fatal
+      // (crashes the process) if nothing is listening for it. Logging and continuing is correct
+      // here because the pool automatically replaces a dropped client on the next checkout; a real
+      // outage still surfaces through /api/health's dbHealthCheck and through failed requests.
+      pool.on("error", error => console.error("Postgres pool error (connection dropped, pool will recover automatically): " + error.message));
       await pool.query("SELECT 1"); // fail fast on a bad connection string instead of on the first request
       store = createPgDataStore(pool);
       accountsStore = createAccountsStore(pool, environment);

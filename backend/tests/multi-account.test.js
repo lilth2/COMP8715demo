@@ -26,6 +26,9 @@ test("Multi-account auth: admin/stakeholder roles, account management, disable/s
   const connectionString = `postgres://test:test@127.0.0.1:${port}/rd_accounts_test`;
 
   const pool = new Pool({ connectionString });
+  // See regression-consistency.test.js for why this listener is needed (CI-only teardown race
+  // between embedded-postgres shutdown and pool.end(), not a mask for a real failure).
+  pool.on("error", () => {});
 
   const { migrate } = require("../db/migrate");
   await migrate(connectionString);

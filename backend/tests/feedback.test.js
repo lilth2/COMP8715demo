@@ -25,6 +25,9 @@ test("Feedback tracker: submission, idempotent double-submit, role-scoped visibi
   const connectionString = `postgres://test:test@127.0.0.1:${port}/rd_feedback_test`;
 
   const pool = new Pool({ connectionString });
+  // See regression-consistency.test.js for why this listener is needed (CI-only teardown race
+  // between embedded-postgres shutdown and pool.end(), not a mask for a real failure).
+  pool.on("error", () => {});
 
   const { migrate } = require("../db/migrate");
   await migrate(connectionString);

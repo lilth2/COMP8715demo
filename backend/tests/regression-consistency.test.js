@@ -26,6 +26,14 @@ test("Regression: draft isolation, publish consistency, delete cleanup, no fake 
   const connectionString = `postgres://test:test@127.0.0.1:${port}/rd_regression_test`;
 
   const pool = new Pool({ connectionString });
+  // embedded-postgres' shutdown sends a "terminating connection" notice to any socket not yet
+  // closed; on some runners (notably GitHub Actions, where this was first observed — it never
+  // reproduced locally) that notice can arrive as an unhandled 'error' event on the pool a moment
+  // after pool.end() resolves, which node:test treats as a test failure despite every assertion
+  // having already passed. A pool is documented by node-postgres as needing an 'error' listener
+  // for exactly this kind of out-of-band backend termination; this is that listener, not a mask
+  // for a real failure (nothing here swallows an error during the test body itself).
+  pool.on("error", () => {});
   const { migrate } = require("../db/migrate");
   await migrate(connectionString);
 

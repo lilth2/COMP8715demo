@@ -75,6 +75,9 @@ test("/api/health with Postgres reports database connectivity, and permission-de
   const connectionString = `postgres://test:test@127.0.0.1:${port}/rd_health_test`;
 
   const pool = new Pool({ connectionString });
+  // See regression-consistency.test.js for why this listener is needed (CI-only teardown race
+  // between embedded-postgres shutdown and pool.end(), not a mask for a real failure).
+  pool.on("error", () => {});
   const { migrate } = require("../db/migrate");
   await migrate(connectionString);
 

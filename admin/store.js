@@ -9,7 +9,7 @@
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function replaceArray(target, source) { target.splice.apply(target, [0, target.length].concat(clone(source || []))); }
   function slug(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
-  var state = { version: 4, actors: clone(D.actors), projects: clone(D.projectNodes), themes: clone(D.themeNodes), relationships: clone(D.relationships), relationshipTypes: clone(D.relationshipTypes || []), sources: clone(D.sources), layout: { nodes: {} }, audit: [] };
+  var state = { version: 4, actors: clone(D.actors), projects: clone(D.projectNodes), themes: clone(D.themeNodes), relationships: clone(D.relationships), relationshipTypes: clone(D.relationshipTypes || []), sources: clone(D.sources), layout: { nodes: {} }, audit: [], importBatches: [] };
   function apply(value) {
     state = value;
     state.audit = state.audit || [];
@@ -100,7 +100,12 @@
       return state.relationships.filter(function (item) { return item.sourceId === id || item.targetId === id; });
     },
     reset: function () { return change("reset"); },
-    importState: function (value) { return change("importState", value); }
+    importState: function (value) { return change("importState", value); },
+    // Bulk import: planBulkImport is read-only (preview/diff), never writes; bulkUpsert commits
+    // the plan. Both run the identical planning function (dataset-core.js's planBulkUpsert), so
+    // the preview counts can never disagree with what committing actually does.
+    planBulkImport: function (collection, mode, rows) { return core.planBulkUpsert(state, collection, mode, rows); },
+    bulkUpsert: function (collection, mode, rows) { return change("bulkUpsert", { collection: collection, mode: mode, rows: rows }); },
   };
   // Public (non-admin) pages must only ever receive published, self-consistent records. In
   // backend mode that split happens on the server (GET /api/dataset vs /api/admin/dataset);

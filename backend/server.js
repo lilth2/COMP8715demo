@@ -3,16 +3,63 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
-const { randomBytes, scrypt, timingSafeEqual } = require("node:crypto");
+const vm = require("node:vm");
+const { randomBytes, scrypt, timingSafeEqual, createHash } = require("node:crypto");
 const { promisify } = require("node:util");
 const deriveKey = promisify(scrypt);
 const { createDataStore } = require("./server-data");
+const { openUpload, rowsFromMapping } = require("./import/plan-from-file");
 const ROOT = path.resolve(__dirname, "..");
 const SESSION_TTL = 8 * 60 * 60 * 1000;
 const LOGIN_WINDOW = 15 * 60 * 1000;
 const COOKIE = "rd_admin_session";
 const PUBLIC_FILES = new Set(["index.html", "app.js", "data.js", "admin/store.js", "admin/dataset-core.js", "ai-engine.js", "admin/login.html", "admin/login.js", "admin/auth.js", "admin/demo-store.js", "site-config.js"]);
 const ADMIN_FILES = new Set(["admin/index.html", "admin/console.js", "admin/network-editor.js"]);
+
+// --------------------------------------------------------------------- bulk import helpers
+// Request shape for all three /api/admin/import/* endpoints:
+//   { collection, mode, rows }                                            — direct rows (bulk form / paste-matrix)
+//   { collection, mode, filename, contentBase64, sheetName, headerRow, fieldMapping } — file upload
+// `inspect` only needs {filename, contentBase64} and returns the sheet list + header row guess,
+// so the admin UI can let the operator choose a sheet and map columns before previewing.
+function decodedFile(value) {
+  if (!value || typeof value.filename !== "string" || typeof value.contentBase64 !== "string") {
+    throw Object.assign(new Error("A file is required."), { status: 400 });
+  }
+  let buf;
+  try { buf = Buffer.from(value.contentBase64, "base64"); } catch { throw Object.assign(new Error("Invalid file encoding."), { status: 400 }); }
+  return { filename: value.filename, buf };
+}
+function inspectUpload(value) {
+  const { filename, buf } = decodedFile(value);
+  const upload = openUpload(buf, filename);
+  const firstSheet = upload.sheets[0];
+  const parsed = firstSheet ? upload.readSheet(firstSheet, 1) : { headers: {}, rows: [] };
+  return { kind: upload.kind, sheets: upload.sheets, suggestedHeaderRow: 1, headers: parsed.headers, sampleRows: parsed.rows.slice(0, 5), anyFormulas: Boolean(parsed.anyFormulas) };
+}
+function rowsForImport(value) {
+  if (Array.isArray(value.rows)) return value.rows; // direct bulk-form / paste-matrix submission
+  const { filename, buf } = decodedFile(value);
+  const upload = openUpload(buf, filename);
+  const sheetName = value.sheetName || upload.sheets[0];
+  const parsed = upload.readSheet(sheetName, value.headerRow || 1);
+  if (!value.fieldMapping || typeof value.fieldMapping !== "object") throw Object.assign(new Error("A field mapping is required for a file import."), { status: 400 });
+  return rowsFromMapping(parsed, value.fieldMapping);
+}
+// Ties a commit to the exact file bytes + sheet + mode, so re-uploading the identical file is
+// recognisable. Direct row submissions (no file) are not fingerprinted — there is nothing stable
+// to hash, and the per-row duplicate-ID checks in planBulkUpsert already prevent re-creating the
+// same record.
+function fingerprintOf(value) {
+  if (!value || !value.contentBase64) return null;
+  const hash = createHash("sha256").update(value.contentBase64).update("|" + (value.sheetName || "")).update("|" + (value.mode || "")).digest("hex");
+  return hash;
+}
+function findPriorImport(snapshot, fingerprint) {
+  if (!fingerprint) return null;
+  const match = (snapshot.importBatches || []).find(b => b.fingerprint === fingerprint);
+  return match ? { importedAt: match.importedAt, importedBy: match.importedBy, createdCount: match.createdCount, updatedCount: match.updatedCount } : null;
+}
 
 function createApp({ account, secureCookies = false, publicOrigin, allowedOrigins = [], dataPath, store: injectedStore } = {}) {
   if (!account || !account.username || !/^[a-f0-9]{128}$/.test(account.passwordHash || "") || !/^[a-f0-9]{64}$/.test(account.salt || "")) {
@@ -25,6 +72,17 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
   // Both expose the same snapshot()/publicData()/apply()/migration() shape; this file awaits
   // every call so it works identically whether the method is sync (JSON store) or async (Postgres).
   const store = injectedStore || createDataStore(dataPath);
+  // Read-only planning core for import previews (dataset-core.js's planBulkUpsert never mutates
+  // its input), built once rather than per-request. The actual commit always goes through
+  // store.apply("bulkUpsert", ...), which re-plans server-side against the live state — this core
+  // is only ever used for the non-committing preview, so a stale preview can never diverge from
+  // what commit actually does (commit re-validates from scratch).
+  const previewCore = (() => {
+    const { createCore } = require("../admin/dataset-core");
+    const context = { window: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT, "data.js"), "utf8"), context);
+    return createCore(context.window.RD_DATA);
+  })();
   const cleanup = setInterval(() => {
     const now = Date.now();
     for (const [key, value] of sessions) if (value.expires <= now) sessions.delete(key);
@@ -56,11 +114,18 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
     res.writeHead(303, { Location: destination });
     res.end();
   }
+  const IMPORT_PATHS = new Set(["/api/admin/import/inspect", "/api/admin/import/preview", "/api/admin/import/commit"]);
+  function bodyLimitFor(pathname) {
+    if (pathname === "/api/admin/action") return 2 * 1024 * 1024;
+    if (IMPORT_PATHS.has(pathname)) return 21 * 1024 * 1024; // base64 of a 15MB file is ~20MB
+    return 8192;
+  }
   async function body(req) {
     let input = "";
+    const limit = bodyLimitFor(req.url.split("?")[0]);
     for await (const chunk of req) {
       input += chunk;
-      if (Buffer.byteLength(input) > (req.url === "/api/admin/action" ? 2 * 1024 * 1024 : 8192)) throw Object.assign(new Error("Request too large."), { status: 413 });
+      if (Buffer.byteLength(input) > limit) throw Object.assign(new Error("Request too large."), { status: 413 });
     }
     try { return JSON.parse(input); }
     catch { throw Object.assign(new Error("Invalid JSON."), { status: 400 }); }
@@ -127,6 +192,26 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         if (!value || typeof value.operation !== "string") return json(res, 400, { message: "Invalid administrator action." });
         return json(res, 200, await store.apply(value.operation, value.value, value.id, current.username));
       }
+      if (url.pathname === "/api/admin/import/inspect" && req.method === "POST") {
+        if (!current) return json(res, 401, { message: "Administrator login required." });
+        return json(res, 200, inspectUpload(await body(req)));
+      }
+      if (url.pathname === "/api/admin/import/preview" && req.method === "POST") {
+        if (!current) return json(res, 401, { message: "Administrator login required." });
+        const value = await body(req);
+        const rows = rowsForImport(value);
+        const snapshot = await store.snapshot();
+        const plan = previewCore.planBulkUpsert(snapshot, value.collection, value.mode, rows);
+        const fingerprint = fingerprintOf(value);
+        return json(res, 200, { plan, fingerprint, previouslyImported: findPriorImport(snapshot, fingerprint) });
+      }
+      if (url.pathname === "/api/admin/import/commit" && req.method === "POST") {
+        if (!current) return json(res, 401, { message: "Administrator login required." });
+        const value = await body(req);
+        const rows = rowsForImport(value);
+        const result = await store.apply("bulkUpsert", { collection: value.collection, mode: value.mode, rows: rows, fingerprint: fingerprintOf(value), sourceFilename: value.filename || null, sheetName: value.sheetName || null }, undefined, current.username);
+        return json(res, 200, result);
+      }
       if (url.pathname.startsWith("/api/")) return json(res, 404, { message: "Not found." });
       if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, { message: "Method not allowed." });
       if (url.pathname === "/admin-login.html") return redirect(res, "/admin/login.html");
@@ -141,7 +226,14 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
       res.setHeader("Content-Type", file.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
       res.end(req.method === "HEAD" ? undefined : await fs.promises.readFile(path.join(ROOT, file)));
     } catch (error) {
-      json(res, error.status || 500, { message: error.status ? error.message : "Unable to complete the request." });
+      if (!error.status) return json(res, 500, { message: "Unable to complete the request." });
+      // Pass through the structured extras some core errors carry (describePublish's `blockers`,
+      // deleteRelationshipType's `typeId`, bulkUpsert's `plan`) so the admin UI's error handling
+      // — which already reads error.blockers etc. — gets real data in backend mode, not just in
+      // the browser demo store where the same Error object is thrown and caught locally.
+      const payload = { message: error.message };
+      ["code", "blockers", "plan", "typeId", "collection", "id"].forEach(key => { if (error[key] !== undefined) payload[key] = error[key]; });
+      json(res, error.status, payload);
     }
   });
   server.on("close", () => clearInterval(cleanup));

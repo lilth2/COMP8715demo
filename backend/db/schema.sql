@@ -171,8 +171,11 @@ CREATE TABLE IF NOT EXISTS layout_positions (
 -- -------------------------------------------------------------------------- import tracking
 CREATE TABLE IF NOT EXISTS import_batches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_filename TEXT NOT NULL,
-  file_fingerprint TEXT NOT NULL,
+  collection TEXT NOT NULL CHECK (collection IN ('actors', 'projects', 'themes', 'relationships')),
+  -- Null for a bulk-form/paste-matrix import (no uploaded file); set for a file upload, and then
+  -- used to detect and refuse re-importing the identical file/sheet/mode combination.
+  source_filename TEXT,
+  file_fingerprint TEXT,
   sheet_name TEXT,
   imported_by TEXT NOT NULL,
   imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -184,8 +187,8 @@ CREATE TABLE IF NOT EXISTS import_batches (
   error_count INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'committed' CHECK (status IN ('committed', 'rolled-back'))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_import_batches_fingerprint ON import_batches (file_fingerprint, sheet_name)
-  WHERE status = 'committed';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_import_batches_fingerprint ON import_batches (file_fingerprint, sheet_name, mode)
+  WHERE status = 'committed' AND file_fingerprint IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS import_rows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

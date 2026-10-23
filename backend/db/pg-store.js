@@ -50,7 +50,7 @@ function actorExtra(record) {
 }
 
 async function loadState(pool) {
-  const [actorsR, addressesR, projectsR, themesR, relsR, typesR, sourcesR, layoutR, auditR, metaR] = await Promise.all([
+  const [actorsR, addressesR, projectsR, themesR, relsR, typesR, sourcesR, layoutR, auditR, batchesR, metaR] = await Promise.all([
     pool.query("SELECT * FROM actors ORDER BY id"),
     pool.query("SELECT * FROM addresses ORDER BY actor_id, position"),
     pool.query("SELECT * FROM projects ORDER BY id"),
@@ -60,10 +60,16 @@ async function loadState(pool) {
     pool.query("SELECT * FROM sources ORDER BY id"),
     pool.query("SELECT * FROM layout_positions"),
     pool.query('SELECT * FROM audit_log ORDER BY "timestamp" DESC LIMIT 100'),
+    pool.query("SELECT * FROM import_batches ORDER BY imported_at DESC LIMIT 200"),
     pool.query("SELECT version FROM schema_meta WHERE id = 1"),
   ]);
   const officesByActor = {};
   for (const o of addressesR.rows) (officesByActor[o.actor_id] = officesByActor[o.actor_id] || []).push({ role: o.role, state: o.state, city: o.city || "", focus: o.focus || "" });
+
+  const batchIds = batchesR.rows.map(b => b.id);
+  const rowsR = batchIds.length ? await pool.query("SELECT * FROM import_rows WHERE batch_id = ANY($1::uuid[]) ORDER BY source_row_number", [batchIds]) : { rows: [] };
+  const rowsByBatch = {};
+  for (const r of rowsR.rows) (rowsByBatch[r.batch_id] = rowsByBatch[r.batch_id] || []).push({ sourceRow: r.source_row_number, recordId: r.record_id, outcome: r.outcome, detail: r.detail });
 
   const state = {
     version: 4,
@@ -75,6 +81,12 @@ async function loadState(pool) {
     sources: sourcesR.rows.map(r => ({ id: r.id, name: r.name, type: r.type, notes: r.notes })),
     layout: { nodes: Object.fromEntries(layoutR.rows.map(r => [r.node_id, { x: r.x, y: r.y }])) },
     audit: auditR.rows.map(r => ({ id: r.id, timestamp: r.timestamp.toISOString(), actor: r.actor, action: r.action, recordType: r.record_type, recordId: r.record_id, label: r.label, details: r.details })),
+    importBatches: batchesR.rows.map(b => ({
+      id: b.id, collection: b.collection, mode: b.mode, fingerprint: b.file_fingerprint,
+      sourceFilename: b.source_filename, sheetName: b.sheet_name, importedBy: b.imported_by, importedAt: b.imported_at.toISOString(),
+      rowCount: b.row_count, createdCount: b.created_count, updatedCount: b.updated_count, skippedCount: b.skipped_count,
+      rows: rowsByBatch[b.id] || [],
+    })),
     updatedAt: new Date().toISOString(),
   };
   const versions = {};
@@ -178,6 +190,21 @@ async function writeDiff(client, before, after, versions) {
       [a.id, a.timestamp, a.actor, a.action, a.recordType, a.recordId, a.label, a.details]
     );
   }
+
+  const newBatches = (after.importBatches || []).filter(b => !(before.importBatches || []).some(bb => bb.id === b.id));
+  for (const b of newBatches) {
+    await client.query(
+      `INSERT INTO import_batches (id, collection, source_filename, file_fingerprint, sheet_name, imported_by, imported_at, mode, row_count, created_count, updated_count, skipped_count, error_count, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'committed') ON CONFLICT (id) DO NOTHING`,
+      [b.id, b.collection, b.sourceFilename || null, b.fingerprint || null, b.sheetName || null, b.importedBy, b.importedAt, b.mode, b.rowCount, b.createdCount, b.updatedCount, b.skippedCount, 0]
+    );
+    for (const r of b.rows || []) {
+      await client.query(
+        `INSERT INTO import_rows (batch_id, source_row_number, record_type, record_id, outcome, detail) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [b.id, r.sourceRow, b.collection, r.recordId || null, r.outcome, r.detail || null]
+      );
+    }
+  }
 }
 
 // `expectedVersion` is undefined for a brand-new record (INSERT; no conflict is possible) and
@@ -240,7 +267,7 @@ async function importFromJson(pool, jsonState) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const empty = { actors: [], projects: [], themes: [], relationships: [], relationshipTypes: [], sources: [], layout: { nodes: {} }, audit: [] };
+    const empty = { actors: [], projects: [], themes: [], relationships: [], relationshipTypes: [], sources: [], layout: { nodes: {} }, audit: [], importBatches: [] };
     await writeDiff(client, empty, jsonState, {});
     await client.query("COMMIT");
   } catch (error) {

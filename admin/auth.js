@@ -40,7 +40,13 @@
     try { result = await response.json(); } catch (error) { throw new Error("The login service is unavailable. Please contact our project team."); }
     if (!response.ok) {
       if (response.status === 401) clearToken();
-      throw new Error(result.message || "Unable to complete the request.");
+      var error = new Error(result.message || "Unable to complete the request.");
+      // Carry through structured extras (blockers, plan, code, ...) the server attached to this
+      // error, matching what the same operation throws when run locally in demo mode, so UI code
+      // that reads error.blockers / error.plan works identically in both modes.
+      Object.keys(result).forEach(function (key) { if (key !== "message") error[key] = result[key]; });
+      error.status = response.status;
+      throw error;
     }
     return result;
   }

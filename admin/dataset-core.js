@@ -257,6 +257,7 @@
         sources: list("sources").length ? clone(raw.sources) : withSourceIds(clone(seed.sources)),
         layout: { nodes: {} },
         audit: clone(list("audit")),
+        importBatches: clone(list("importBatches")),
         updatedAt: raw.updatedAt || new Date().toISOString(),
       };
       if (raw.layout && raw.layout.nodes && typeof raw.layout.nodes === "object") {
@@ -412,6 +413,110 @@
       });
     }
 
+    // -------------------------------------------------------------- bulk import planning
+    var BULK_COLLECTIONS = ["actors", "projects", "themes", "relationships"];
+    var REQUIRED_FIELDS = {
+      actors: ["name", "type", "summary"], projects: ["name", "summary"], themes: ["name", "summary"],
+      relationships: ["sourceId", "targetId", "type"],
+    };
+    function bulkRowKey(collection, row) {
+      return collection === "relationships" ? (row && row.id) : (row && row.id);
+    }
+    // Resolves a source/target cell that may be an existing id OR a plain organisation/project/
+    // theme name (so bulk rows pasted from a spreadsheet can reference records by name without
+    // the operator having to know internal ids). Ambiguous or missing names are reported, never
+    // guessed.
+    function resolveNodeRef(state, raw, newRowsById) {
+      var text = String(raw || "").trim();
+      if (!text) return { error: "missing" };
+      var byId = findNode(state, text) || (newRowsById[text] ? { record: newRowsById[text] } : null);
+      if (byId) return { id: text };
+      var nodes = state.actors.concat(state.projects, state.themes).map(function (n) { return { id: n.id, name: n.name }; })
+        .concat(Object.keys(newRowsById).map(function (id) { return { id: id, name: newRowsById[id].name }; }));
+      var matches = nodes.filter(function (n) { return n.name.toLowerCase() === text.toLowerCase(); });
+      if (matches.length === 1) return { id: matches[0].id };
+      if (matches.length > 1) return { error: "ambiguous", matches: matches.map(function (m) { return m.id; }) };
+      return { error: "not-found" };
+    }
+    // Pure planning function shared by the preview (read-only) and the actual commit, so the
+    // preview counts can never disagree with what committing will do. `rows` are partial records
+    // in upsert shape (same fields the single-record admin forms submit), each tagged with the
+    // 1-based `sourceRow` it came from (spreadsheet/paste row number) for error messages.
+    function planBulkUpsert(state, collection, mode, rows) {
+      if (BULK_COLLECTIONS.indexOf(collection) === -1) fail("Invalid collection for bulk import.");
+      if (["add-only", "update-by-id"].indexOf(mode) === -1) fail("Invalid import mode.");
+      if (!Array.isArray(rows) || rows.length === 0) fail("No rows to import.");
+      if (rows.length > 5000) fail("Too many rows in one import (maximum 5000).");
+      var existingIds = new Set((state[collection] || []).map(function (r) { return r.id; }));
+      var newRowsById = {}; // id -> partial record, for cross-row name resolution within this same batch
+      var seenInBatch = {};
+      var planned = rows.map(function (row, index) {
+        var sourceRow = row && row.sourceRow != null ? row.sourceRow : index + 1;
+        var errors = [];
+        var warnings = [];
+        var id = row && typeof row.id === "string" ? row.id.trim() : "";
+        (REQUIRED_FIELDS[collection] || []).forEach(function (f) {
+          if (collection === "relationships") return; // relationship refs are checked below, with name resolution
+          if (!row || row[f] === undefined || row[f] === null || String(row[f]).trim() === "") errors.push("Missing required field \"" + f + "\".");
+        });
+        var action = null, resolvedId = id;
+        if (mode === "update-by-id") {
+          if (!id) errors.push("Row has no ID to update.");
+          else if (!existingIds.has(id)) errors.push("No existing record with ID \"" + id + "\" to update.");
+          else action = "updated";
+        } else { // add-only
+          if (id && existingIds.has(id)) errors.push("ID \"" + id + "\" already exists. Use \"update by ID\" mode to change an existing record, or remove the ID to create a new one.");
+          else action = "created";
+        }
+        if (!id && mode === "add-only" && row && row.name) resolvedId = slug(row.name);
+        if (collection === "relationships") {
+          ["sourceId", "targetId"].forEach(function (field) {
+            var resolved = resolveNodeRef(state, row && row[field === "sourceId" ? "source" : "target"] !== undefined ? row[field === "sourceId" ? "source" : "target"] : (row && row[field]), newRowsById);
+            if (resolved.error === "missing") errors.push((field === "sourceId" ? "From" : "To") + " organisation/project/theme is required.");
+            else if (resolved.error === "ambiguous") errors.push((field === "sourceId" ? "From" : "To") + " \"" + (row[field === "sourceId" ? "source" : "target"] || row[field]) + "\" matches more than one record; use its ID instead of its name.");
+            else if (resolved.error === "not-found") errors.push((field === "sourceId" ? "From" : "To") + " \"" + (row[field === "sourceId" ? "source" : "target"] || row[field]) + "\" was not found. Create it first or check spelling.");
+            else row[field] = resolved.id;
+          });
+          if (row.sourceId && row.targetId && row.sourceId === row.targetId) errors.push("From and To must be different records.");
+          if (!row.type || !String(row.type).trim()) errors.push("Relationship type is required.");
+          // A relationship row with no explicit ID gets one generated from its (now-resolved)
+          // endpoints and type, exactly like the single-record admin form (admin/store.js).
+          if (!id && mode === "add-only" && !errors.length) resolvedId = ("rel-" + slug(row.sourceId + "-" + row.type + "-" + row.targetId)).slice(0, 120);
+        }
+        if (resolvedId && seenInBatch[resolvedId]) errors.push("Duplicate ID \"" + resolvedId + "\" within this import.");
+        if (resolvedId) seenInBatch[resolvedId] = true;
+        if (action && !errors.length && mode === "add-only" && collection !== "relationships") newRowsById[resolvedId || id] = row;
+        return { sourceRow: sourceRow, id: resolvedId || id, action: errors.length ? "error" : action, errors: errors, warnings: warnings, row: row };
+      });
+      var counts = { created: 0, updated: 0, skipped: 0, errors: 0 };
+      planned.forEach(function (p) {
+        if (p.action === "error") counts.errors++;
+        else if (p.action === "created") counts.created++;
+        else if (p.action === "updated") counts.updated++;
+        else counts.skipped++;
+      });
+      return { collection: collection, mode: mode, rows: planned, counts: counts, canCommit: counts.errors === 0 };
+    }
+
+    // Single-record upsert, shared by the upsertActor/upsertProject/upsertTheme/upsertRelationship/
+    // upsertSource operations AND bulkUpsert, so a bulk-imported row is created/updated through
+    // exactly the same path (draft-by-default, host/theme link derivation, validation) as a row
+    // saved from the one-record admin form.
+    function upsertOne(next, key, value) {
+      var incoming = clone(value);
+      var index = next[key].findIndex(function (i) { return i.id === incoming.id; });
+      var existing = index >= 0 ? next[key][index] : null;
+      if (key !== "sources") {
+        delete incoming.status; delete incoming.publishedSnapshot;
+        incoming.status = existing ? existing.status : "draft";
+        if (existing && existing.publishedSnapshot) incoming.publishedSnapshot = existing.publishedSnapshot;
+        if (key === "projects") incoming.hostId = existing ? existing.hostId : "";
+      }
+      if (index < 0) next[key].push(incoming); else next[key][index] = incoming;
+      if (key === "actors" || key === "projects") ensureLinks(next, incoming, key, "edit");
+      return { id: incoming.id, created: index < 0, label: incoming.name || (incoming.sourceId ? relLabel(next, incoming) : incoming.id) };
+    }
+
     // What deleting (or withdrawing) a record touches; used for the confirmation text.
     function impactOf(state, collection, id) {
       var record = (state[collection] || []).find(function (r) { return r.id === id; });
@@ -440,20 +545,61 @@
         var key = upserts[operation];
         if (!value || typeof value !== "object" || Array.isArray(value)) fail("Missing record.");
         checkId(value.id);
-        var incoming = clone(value);
-        var index = next[key].findIndex(function (i) { return i.id === incoming.id; });
-        var existing = index >= 0 ? next[key][index] : null;
-        if (key !== "sources") {
-          delete incoming.status; delete incoming.publishedSnapshot;
-          incoming.status = existing ? existing.status : "draft";
-          if (existing && existing.publishedSnapshot) incoming.publishedSnapshot = existing.publishedSnapshot;
-          if (key === "projects") incoming.hostId = existing ? existing.hostId : "";
+        var upsertResult = upsertOne(next, key, value);
+        label = upsertResult.label;
+        action = upsertResult.created ? "Created" : "Updated";
+        recordId = upsertResult.id; recordType = key;
+      } else if (operation === "bulkUpsert") {
+        if (!value || BULK_COLLECTIONS.indexOf(value.collection) === -1) fail("Invalid collection for bulk import.");
+        // A fingerprint ties this commit to the exact uploaded file + sheet + mode (computed by
+        // the caller from the file bytes; see backend/import). Resubmitting the identical file is
+        // recognised and refused here rather than silently creating duplicate records — the
+        // admin sees "already imported" and can choose to proceed only by explicitly changing
+        // something (e.g. switching mode), not by accident.
+        if (value.fingerprint && next.importBatches.some(function (b) { return b.fingerprint === value.fingerprint; })) {
+          fail("This exact file (and sheet/mode) was already imported on " + next.importBatches.filter(function (b) { return b.fingerprint === value.fingerprint; })[0].importedAt + ". Re-importing it again would risk duplicate records; choose a different file or mode, or ask an administrator to review the prior import batch.", { code: "duplicate-import" });
         }
-        if (index < 0) next[key].push(incoming); else next[key][index] = incoming;
-        if (key === "actors" || key === "projects") ensureLinks(next, incoming, key, "edit");
-        label = incoming.name || (incoming.sourceId ? relLabel(next, incoming) : incoming.id);
-        action = index < 0 ? "Created" : "Updated";
-        recordId = incoming.id; recordType = key;
+        var bulkPlan = planBulkUpsert(next, value.collection, value.mode, value.rows);
+        if (!bulkPlan.canCommit) fail("This import has " + bulkPlan.counts.errors + " row error(s) and cannot be committed. Fix or remove those rows first.", { code: "bulk-errors", plan: bulkPlan });
+        var bulkCreated = 0, bulkUpdated = 0;
+        var batchId = uid();
+        var importRows = [];
+        bulkPlan.rows.forEach(function (p) {
+          if (p.action !== "created" && p.action !== "updated") { importRows.push({ sourceRow: p.sourceRow, recordId: null, outcome: "skipped", detail: p.errors.join("; ") || null }); return; }
+          var rowValue = clone(p.row);
+          rowValue.id = p.id;
+          if (value.collection === "relationships") {
+            var typedType = String(rowValue.type || "").trim();
+            var resolvedType = next.relationshipTypes.find(function (t) { return t.id === typedType || t.displayName.toLowerCase() === typedType.toLowerCase(); });
+            rowValue.type = resolvedType ? resolvedType.id : slug(typedType);
+            if (!resolvedType) next.relationshipTypes.push({ id: rowValue.type, displayName: typedType, color: defaultColor(rowValue.type), isSystem: false });
+            rowValue.confidence = rowValue.confidence || "needs-review";
+            rowValue.intensity = rowValue.intensity || "weak";
+            rowValue.evidence = rowValue.evidence || "";
+          } else {
+            if (value.collection === "actors") rowValue.type = rowValue.type || "crc";
+            if (value.collection === "projects") rowValue.type = "project_initiative";
+            if (value.collection === "themes") rowValue.type = "research_theme";
+            rowValue.dataConfidence = rowValue.dataConfidence || "needs-review";
+            rowValue.themes = Array.isArray(rowValue.themes) ? rowValue.themes : [];
+            rowValue.summary = rowValue.summary || "";
+          }
+          var result = upsertOne(next, value.collection, rowValue);
+          if (result.created) bulkCreated++; else bulkUpdated++;
+          importRows.push({ sourceRow: p.sourceRow, recordId: result.id, outcome: result.created ? "created" : "updated", detail: null });
+        });
+        next.importBatches = next.importBatches || [];
+        next.importBatches.unshift({
+          id: batchId, collection: value.collection, mode: value.mode, fingerprint: value.fingerprint || null,
+          sourceFilename: value.sourceFilename || null, sheetName: value.sheetName || null,
+          importedBy: username, importedAt: new Date().toISOString(),
+          rowCount: bulkPlan.rows.length, createdCount: bulkCreated, updatedCount: bulkUpdated,
+          skippedCount: bulkPlan.rows.length - bulkCreated - bulkUpdated, rows: importRows,
+        });
+        next.importBatches = next.importBatches.slice(0, 200);
+        label = "Bulk import: " + value.collection; recordType = value.collection; recordId = batchId;
+        action = "Bulk imported (" + bulkCreated + " created, " + bulkUpdated + " updated)";
+        if (!bulkCreated && !bulkUpdated) { audited = false; touched = false; }
       } else if (operation === "upsertRelationshipType") {
         if (!value || typeof value !== "object" || typeof value.id !== "string") fail("Missing relationship type.");
         var typeId = value.id.trim() ? value.id.trim() : slug(value.displayName);
@@ -591,7 +737,8 @@
     }
 
     return { VERSION: VERSION, defaults: defaults, normalize: normalize, validate: validate, apply: apply, publicData: publicData,
-      describePublish: describePublish, impactOf: impactOf, hasPendingChanges: hasPendingChanges, nameOf: nameOf, relLabel: relLabel, typeLabel: typeLabel, findNode: findNode, managedLinksOf: managedLinksOf };
+      describePublish: describePublish, impactOf: impactOf, hasPendingChanges: hasPendingChanges, nameOf: nameOf, relLabel: relLabel, typeLabel: typeLabel, findNode: findNode, managedLinksOf: managedLinksOf,
+      planBulkUpsert: planBulkUpsert };
   }
 
   return { createCore: createCore, strip: strip, canon: canon, hasPendingChanges: hasPendingChanges };

@@ -109,6 +109,12 @@
     // the preview counts can never disagree with what committing actually does.
     planBulkImport: function (collection, mode, rows) { return core.planBulkUpsert(state, collection, mode, rows); },
     bulkUpsert: function (collection, mode, rows) { return change("bulkUpsert", { collection: collection, mode: mode, rows: rows }); },
+    batchImpactOf: function (collection, ids) { return core.batchImpactOf(state, collection, ids); },
+    batchEditableFields: function (collection) { return core.batchEditableFields[collection] || []; },
+    bulkPublish: function (collection, ids, withDependencies) { return change("bulkAction", { collection: collection, ids: ids, action: "publish", withDependencies: Boolean(withDependencies) }); },
+    bulkWithdraw: function (collection, ids) { return change("bulkAction", { collection: collection, ids: ids, action: "withdraw" }); },
+    bulkDelete: function (collection, ids) { return change("bulkAction", { collection: collection, ids: ids, action: "delete" }); },
+    bulkSetField: function (collection, ids, field, fieldValue) { return change("bulkAction", { collection: collection, ids: ids, action: "setField", field: field, fieldValue: fieldValue }); },
   };
   // Public (non-admin) pages must only ever receive published, self-consistent records. In
   // backend mode that split happens on the server (GET /api/dataset vs /api/admin/dataset);

@@ -533,6 +533,32 @@
       };
     }
 
+    // Aggregated impact across several ids at once, for a batch-action confirmation dialog: every
+    // relationship/hosted-project/tagged-record touched by ANY of the selected records, de-duplicated.
+    function batchImpactOf(state, collection, ids) {
+      var seenRel = {}, seenHosted = {}, seenTagged = {};
+      var relationships = [], hostedProjects = [], taggedRecords = [];
+      var publishedCount = 0, names = [];
+      ids.forEach(function (id) {
+        var one = impactOf(state, collection, id);
+        names.push(one.name);
+        if (one.published) publishedCount++;
+        one.relationships.forEach(function (r) { if (!seenRel[r.id]) { seenRel[r.id] = true; relationships.push(r); } });
+        one.hostedProjects.forEach(function (p) { if (!seenHosted[p.id]) { seenHosted[p.id] = true; hostedProjects.push(p); } });
+        one.taggedRecords.forEach(function (n) { if (!seenTagged[n.id]) { seenTagged[n.id] = true; taggedRecords.push(n); } });
+      });
+      return { count: ids.length, names: names, publishedCount: publishedCount, relationships: relationships, hostedProjects: hostedProjects, taggedRecords: taggedRecords };
+    }
+    // Fields a batch edit may safely set in bulk, per collection — deliberately a narrow,
+    // explicit allowlist (not "any field"), so a batch edit can never be used to smuggle in
+    // id/status/publishedSnapshot changes outside the normal publish/withdraw/delete operations.
+    var BATCH_EDITABLE_FIELDS = {
+      actors: ["state", "dataConfidence", "sectors", "website"],
+      projects: ["state", "dataConfidence"],
+      themes: ["dataConfidence"],
+      relationships: ["confidence", "intensity", "evidence"],
+    };
+
     // ---------------------------------------------------------------------- apply
     function apply(state, operation, value, recordId, username) {
       var next = clone(state);
@@ -600,6 +626,61 @@
         label = "Bulk import: " + value.collection; recordType = value.collection; recordId = batchId;
         action = "Bulk imported (" + bulkCreated + " created, " + bulkUpdated + " updated)";
         if (!bulkCreated && !bulkUpdated) { audited = false; touched = false; }
+      } else if (operation === "bulkAction") {
+        // value: { collection, ids: [...], action: "publish"|"withdraw"|"delete"|"setField",
+        //          withDependencies, field, fieldValue }. All-or-nothing: if ANY id fails (not
+        // found, or a relationship blocked from publishing), the whole batch is rejected before
+        // anything is changed — never a silent partial batch.
+        if (!value || BULK_COLLECTIONS.indexOf(value.collection) === -1) fail("Invalid collection for bulk action.");
+        var bKey = value.collection;
+        var bIds = Array.isArray(value.ids) ? value.ids : [];
+        if (!bIds.length) fail("No records selected.");
+        if (bIds.length > 2000) fail("Too many records selected in one batch (maximum 2000).");
+        var missing = bIds.filter(function (id) { return !next[bKey].some(function (r) { return r.id === id; }); });
+        if (missing.length) fail("Record(s) not found: " + missing.join(", "), { code: "not-found", ids: missing });
+
+        if (value.action === "publish") {
+          var blockedIds = [];
+          bIds.forEach(function (id) {
+            var plan = describePublish(next, bKey, id);
+            if (plan.blockers.length && !value.withDependencies) blockedIds.push(id);
+          });
+          if (blockedIds.length) fail("Some selected relationships connect records that are not published yet. Publish them together, or publish the endpoints first.", { code: "blocked", ids: blockedIds });
+          bIds.forEach(function (id) {
+            var plan = describePublish(next, bKey, id);
+            plan.blockers.forEach(function (b) { publishNodeWithLinks(next, b.collection, next[b.collection].find(function (r) { return r.id === b.id; })); });
+            var target = next[bKey].find(function (r) { return r.id === id; });
+            if (bKey === "relationships") publishRecord(target); else publishNodeWithLinks(next, bKey, target);
+          });
+          action = "Bulk published"; recordType = bKey;
+        } else if (value.action === "withdraw") {
+          var notPublished = bIds.filter(function (id) { return next[bKey].find(function (r) { return r.id === id; }).status !== "published"; });
+          if (notPublished.length) fail("Some selected records are already drafts (only published records can be withdrawn).", { code: "not-published", ids: notPublished });
+          bIds.forEach(function (id) {
+            var target = next[bKey].find(function (r) { return r.id === id; });
+            target.status = "draft"; delete target.publishedSnapshot;
+          });
+          action = "Bulk withdrawn"; recordType = bKey;
+        } else if (value.action === "delete") {
+          bIds.forEach(function (id) {
+            if (NODE_COLLECTIONS.indexOf(bKey) !== -1) {
+              next.relationships = next.relationships.filter(function (r) { return r.sourceId !== id && r.targetId !== id; });
+              scrubReferences(next, id);
+              delete next.layout.nodes[id];
+            }
+          });
+          next[bKey] = next[bKey].filter(function (r) { return bIds.indexOf(r.id) === -1; });
+          action = "Bulk deleted"; recordType = bKey;
+        } else if (value.action === "setField") {
+          var allowed = BATCH_EDITABLE_FIELDS[bKey] || [];
+          if (allowed.indexOf(value.field) === -1) fail("\"" + value.field + "\" cannot be batch-edited for " + bKey + ". Allowed fields: " + allowed.join(", "));
+          bIds.forEach(function (id) {
+            var target = next[bKey].find(function (r) { return r.id === id; });
+            target[value.field] = value.fieldValue;
+          });
+          action = "Bulk edited " + value.field; recordType = bKey;
+        } else fail("Unknown bulk action.");
+        label = bIds.length + " " + bKey; recordId = undefined;
       } else if (operation === "upsertRelationshipType") {
         if (!value || typeof value !== "object" || typeof value.id !== "string") fail("Missing relationship type.");
         var typeId = value.id.trim() ? value.id.trim() : slug(value.displayName);
@@ -738,7 +819,7 @@
 
     return { VERSION: VERSION, defaults: defaults, normalize: normalize, validate: validate, apply: apply, publicData: publicData,
       describePublish: describePublish, impactOf: impactOf, hasPendingChanges: hasPendingChanges, nameOf: nameOf, relLabel: relLabel, typeLabel: typeLabel, findNode: findNode, managedLinksOf: managedLinksOf,
-      planBulkUpsert: planBulkUpsert };
+      planBulkUpsert: planBulkUpsert, batchImpactOf: batchImpactOf, batchEditableFields: BATCH_EDITABLE_FIELDS };
   }
 
   return { createCore: createCore, strip: strip, canon: canon, hasPendingChanges: hasPendingChanges };

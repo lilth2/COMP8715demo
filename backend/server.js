@@ -314,10 +314,14 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         }
         if (action === "set-password") {
           const value = await body(req);
-          await accountsStore.setPassword(accountId, value.password);
+          // `oneTime: true` marks the new password as a fresh one-time credential (e.g.
+          // re-issuing access to an account whose previous one-time password has already been
+          // consumed) -- the recipient must set their own password at next login before reaching
+          // anything else, same as a brand-new account created by accounts-bootstrap.js.
+          await accountsStore.setPassword(accountId, value.password, { requireChange: Boolean(value.oneTime) });
           await sessionsStore.revokeAllForAccount(accountId); // force re-login with the new password everywhere
           const target = await accountsStore.get(accountId);
-          await accountsStore.audit({ actor: current.username, action: "Changed password", targetAccountId: accountId, targetUsername: target && target.username });
+          await accountsStore.audit({ actor: current.username, action: value.oneTime ? "Issued one-time password" : "Changed password", targetAccountId: accountId, targetUsername: target && target.username });
           return json(res, 200, target);
         }
       }

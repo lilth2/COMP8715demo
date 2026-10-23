@@ -348,6 +348,7 @@
       <div class="form-body"><div class="form-grid">
         <input type="hidden" id="setPasswordAccountId" />
         <div class="field full"><label for="setPasswordValue">New password *</label><input id="setPasswordValue" type="text" required minlength="12" placeholder="At least 12 characters" /></div>
+        <div class="field full"><label><input type="checkbox" id="setPasswordOneTime" checked /> This is a one-time password — require the account to set its own password at next login</label></div>
         <p class="help">The account's existing sessions will be signed out immediately once the password changes.</p>
       </div></div>
       <div class="form-actions"><button class="btn" type="button" data-close="setPasswordDialog">Cancel</button><button class="btn teal" type="submit">Set password</button></div>

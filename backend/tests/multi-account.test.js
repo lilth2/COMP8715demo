@@ -123,6 +123,21 @@ test("Multi-account auth: admin/stakeholder roles, account management, disable/s
     assert.equal(reloginNew.status, 200, "the new password works");
   });
 
+  await t.test("admin can re-issue a one-time password for re-handover, forcing another forced password change", async () => {
+    const loginRes = await post(uatBase, "/api/login", { username: "owner", password: "New-owner-password-2026!" });
+    const token = (await loginRes.json()).token;
+    const accounts = await (await get(uatBase, "/api/admin/accounts", token)).json();
+    const stakeholderId = accounts.find(a => a.username === "stakeholder1").id;
+
+    const reissueRes = await post(uatBase, "/api/admin/accounts/" + stakeholderId + "/set-password", { password: "Re-issued-one-time-pw-2026!", oneTime: true }, token);
+    assert.equal(reissueRes.status, 200, await reissueRes.text());
+
+    const reloginRes = await post(uatBase, "/api/login", { username: "stakeholder1", password: "Re-issued-one-time-pw-2026!" });
+    assert.equal(reloginRes.status, 200);
+    const reloginBody = await reloginRes.json();
+    assert.equal(reloginBody.mustChangePassword, true, "a re-issued one-time password forces a change at next login, same as account creation");
+  });
+
   await t.test("an account with mustChangePassword must change its password before reaching any other admin/feedback route", async () => {
     await uatAccounts.create({ username: "onetimer", password: "One-time-password-2026!", role: "stakeholder", createdBy: "test", mustChangePassword: true });
 

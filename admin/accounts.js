@@ -70,9 +70,10 @@
       event.preventDefault();
       try {
         var id = $("#setPasswordAccountId").value;
-        await Auth.request("api/admin/accounts/" + id + "/set-password", { password: $("#setPasswordValue").value });
+        var oneTime = $("#setPasswordOneTime").checked;
+        await Auth.request("api/admin/accounts/" + id + "/set-password", { password: $("#setPasswordValue").value, oneTime: oneTime });
         $("#setPasswordDialog").close();
-        if (window.RD_ADMIN_UI) window.RD_ADMIN_UI.showToast("Password updated. That account's existing sessions were signed out.");
+        if (window.RD_ADMIN_UI) window.RD_ADMIN_UI.showToast(oneTime ? "One-time password set. That account must choose its own password at next login; existing sessions were signed out." : "Password updated. That account's existing sessions were signed out.");
         renderAccounts();
       } catch (error) { if (window.RD_ADMIN_UI) window.RD_ADMIN_UI.showError(error); }
     });

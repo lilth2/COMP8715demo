@@ -93,18 +93,21 @@ function createAccountsStore(pool, environment) {
       );
       return toPublic(r.rows[0]);
     },
-    // `clearMustChange` is true for a self-service password change (the forced-change flow) and
-    // false for an admin resetting someone else's password, which should not silently clear a
-    // still-pending forced-change requirement the admin didn't know about.
-    async setPassword(id, newPassword, { clearMustChange = false } = {}) {
+    // `clearMustChange` is true for a self-service password change (the forced-change flow),
+    // clearing any pending requirement. `requireChange` is true when an admin/stakeholder is
+    // issuing a fresh one-time credential to someone else (e.g. re-handing-over an account) and
+    // wants THAT password to itself be one-time — the two are mutually exclusive by construction
+    // (a caller sets at most one), and leaving both false preserves whatever was already there,
+    // which is the right default for an ordinary "I forgot my password, reset it for me" reset.
+    async setPassword(id, newPassword, { clearMustChange = false, requireChange = false } = {}) {
       assertPassword(newPassword);
       const row = await findById(id);
       if (!row) throw Object.assign(new Error("Account not found."), { status: 404 });
       const salt = randomBytes(32).toString("hex");
       const passwordHash = scryptSync(newPassword, salt, 64).toString("hex");
       await pool.query(
-        "UPDATE accounts SET password_salt=$2, password_hash=$3, must_change_password = CASE WHEN $4 THEN false ELSE must_change_password END WHERE id=$1",
-        [id, salt, passwordHash, clearMustChange]
+        "UPDATE accounts SET password_salt=$2, password_hash=$3, must_change_password = CASE WHEN $4 THEN false WHEN $5 THEN true ELSE must_change_password END WHERE id=$1",
+        [id, salt, passwordHash, clearMustChange, requireChange]
       );
     },
     async disable(id) {

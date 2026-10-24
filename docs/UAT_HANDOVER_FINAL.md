@@ -1,10 +1,15 @@
 # UAT handover — final package
 
 This is the single document to use when inviting the stakeholder. It intentionally contains **no
-password** anywhere in it — the one-time credential must reach her through a separate channel from
-this document (see "Secure account pickup" below). For the full technical detail behind every claim
+password** anywhere in it — her credential must reach her through a separate channel from this
+document (see "Secure account pickup" below). For the full technical detail behind every claim
 here, see `docs/UAT.md` (environment setup, role matrix, troubleshooting) and
 `docs/DATA_PUBLICATION_REVIEW.md` (exact per-record publication status).
+
+**Update (2026-10-24)**: `stakeholder1` is now a long-term UAT super-admin account, not a one-time
+credential — her password has already been set directly and does **not** force a change at her
+first login (unlike the original account-creation flow). See `docs/UAT.md` §3.2 for the full detail
+and the live verification performed.
 
 ---
 
@@ -21,21 +26,23 @@ Her username is **`stakeholder1`** — a placeholder, used because no real name 
 available when the account was created. It can be renamed or replaced with her real details at any
 time (see `docs/UAT.md` §3.1); nothing below changes if that happens later, only the username does.
 
-A fresh one-time password has already been generated for her and is **not included anywhere in
-this document, in any commit, or in any log**. It is in your hands now, delivered to you separately
-from this report. To hand it to her:
+Her password has already been set and is **not included anywhere in this document, in any commit,
+or in any log**. It is in your hands now, delivered to you separately from this report. To hand it
+to her:
 
 1. Send her the login URL and username above through your normal contact channel (email, Slack,
    whatever you'd use to reach her).
-2. Send her the one-time password through a **different** channel — a password manager share, a
-   phone call, a separate text message. Never the same message as the URL/username.
-3. The system will force her to set her own password the moment she logs in with it — she cannot
-   proceed past that screen until she does (verified in a real browser this round: the dialog has
-   no close or cancel button). After that point, only she knows her password.
+2. Send her the password through a **different** channel — a password manager share, a phone call,
+   a separate text message. Never the same message as the URL/username.
+3. She logs in directly into the admin console — no forced "choose your own password" step for
+   this account (that was true for the original one-time credential; it no longer applies now that
+   this is a long-term account). Verified live and in a real browser on 2026-10-24.
 
-If this specific one-time password is ever lost, consumed, or needs replacing, any admin account
-can re-issue a fresh one from the admin console (**Accounts** → her row → **Set password**, with
-"one-time password" checked) — no need to ask for engineering help to do this.
+If her access ever needs to be revoked and replaced (e.g. the password is compromised or she's
+leaving the test), any admin account can set a new one from the admin console (**Accounts** → her
+row → **Set password**) — leave the "one-time password" checkbox unchecked to keep this same
+long-term policy, or check it if you specifically want to force a change at her next login for that
+particular reset. No need to ask for engineering help to do either.
 
 ## 3. What's open to her right now
 

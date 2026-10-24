@@ -130,12 +130,12 @@ actions.
 
 ---
 
-## 3. The stakeholder's account (created and tested — this section reflects the real, live state)
+## 3. The stakeholder's account (long-term UAT super-admin — updated 2026-10-24)
 
 ### 3.1 What exists right now
 
-- `admin` — for the dev team, created with a one-time generated password, **not yet
-  password-changed** (`mustChangePassword: true` until first login).
+- `admin` — for the dev team, still on its original one-time generated password, **not yet
+  password-changed** (`mustChangePassword: true` until first login). Unaffected by the change below.
 - `stakeholder1` — **this is a placeholder username**, chosen because no real name or email was
   available at creation time. Her account has a `displayName` of "Stakeholder (UAT)" so it is
   obviously a placeholder in the Accounts list, and it can be renamed/recreated with her real
@@ -144,41 +144,64 @@ actions.
   — there is no username-rename endpoint today, only create/disable/set-password).
 - Both were created in the **UAT** database only (`APP_ENVIRONMENT=uat`), via
   `npm run setup:accounts -- --admin-username admin --stakeholder-username stakeholder1`.
-- Both got **one-time generated passwords**, never written to a file, shown once at creation time
-  and nowhere else. `stakeholder1`'s one-time password was already consumed during this round's
-  acceptance testing (§7) — a **new** one-time password must be set for her before handover (§9).
 
-### 3.2 How the forced password change works (verified live, §7)
+### 3.2 `stakeholder1` is now a long-term account, not a one-time-password account
 
-A generated initial password forces a password change at first login: the account can sign in with
-it, but the server blocks every other admin/feedback route (`403` with `mustChangePassword: true`)
-until a new password is set. The admin console shows a non-dismissible "Choose your own password"
-dialog immediately after such a login — there is no way to click past it. This means the one-time
-credential handed to her never becomes her standing password. Confirmed live: logging in with the
-one-time password returned `mustChangePassword: true`; every `/api/admin/*` call was blocked with
-`403` until `POST /api/account/change-password` was called, which also revoked the pre-change
-session token immediately (confirmed: reusing the old token afterward returned `401`).
+Per an explicit decision on 2026-10-24, `stakeholder1`'s account policy was changed from "one-time
+password, forced change at first login" to a **long-term, standing** UAT super-admin account:
+
+- The password is set directly (not generated), stored with the same scrypt hashing every other
+  account password uses — no new storage mechanism was introduced.
+- `mustChangePassword` is cleared and stays cleared — logging in does **not** show the forced
+  "Choose your own password" dialog; she goes straight into the admin console.
+- `expires_at` is `null` and nothing sets it — the account does not auto-expire. (This was already
+  true before this change; no code change was needed, only confirming it stays unset.)
+- This is a **database-level change to this one account's two columns**
+  (`password_hash`/`password_salt` and `must_change_password`), made through the existing
+  `accounts-pg.js` `setPassword(id, newPassword, { clearMustChange: true })` function — the exact
+  same function the self-service "change my own password" flow already used. No new code, no new
+  endpoint, no schema change.
+- Verified live and in a real browser (2026-10-24): logging in with the new password goes directly
+  to the admin console with full data visible (56 organisations / 16 projects / 92 relationships)
+  and no forced-password dialog; the account's own audit log records the change ("Set long-term
+  password (policy change: no forced change, no auto-expiry)"); the previous one-time password and
+  its session were both confirmed dead immediately afterward.
+- **Other accounts' policies are unaffected.** `admin` still requires a password change at its next
+  login; nothing about login rate-limiting, session expiry (8 hours), HTTPS, secure cookies
+  (`HttpOnly; SameSite=Strict; Secure`, confirmed present in the live response headers), or CORS
+  was touched by this change — none of that is account-specific, and all of it was re-verified
+  working exactly as before.
+- **What did NOT change**: her full admin-equivalent capability (§1), her confinement to the UAT
+  database only (structurally impossible to reach production — §1), server-side enforcement of
+  every permission, the ability for another admin/stakeholder to still disable her account or reset
+  her password at any time (§3.4/§3.5 below, unchanged), and dangerous-operation confirmation
+  dialogs in the UI.
+- The password itself was never written into any source file, config template, commit, log,
+  screenshot, or this report — it was set via a one-off local script reading the value from a
+  locally-captured file that was deleted immediately after the change was verified.
 
 ### 3.3 Giving her access (handover procedure, not yet done)
 
-1. Before handing anything over: use **Set password** in the admin console (§3.4) to generate a
-   *fresh* one-time password for `stakeholder1` — the one used during this round's testing has
-   already been consumed and is no longer valid, by design.
+1. The account is ready now — no "generate a fresh one-time password" step is needed for this
+   account the way it was before, since the password is already a long-term one she can keep using.
 2. Give her, through channels that are NOT the same channel:
    - The UAT URL: `https://comp8715demo-uat-backend.onrender.com/admin/login.html`
    - Her username: `stakeholder1` (or her real name, if you've renamed/recreated by then)
-   - Her one-time password — **never in the same message/channel as the URL or username**, per
-     the brief's requirement that credentials travel over an independent secure channel.
+   - Her password — **never in the same message/channel as the URL or username**, per the brief's
+     requirement that credentials travel over an independent secure channel.
    - The quick-start guide in §4 and the task list in §5.
 3. Tell her explicitly this is an isolated test environment — nothing she does here reaches any
-   real public site, and she will be asked to set her own password the first time she logs in.
+   real public site. Unlike a one-time credential, she will **not** be asked to change this
+   password at first login — it's hers to keep using for this round of testing.
 
-### 3.4 Changing her password (if she wants to, or you need to reset it)
+### 3.4 Changing her password (if she wants to, or you need to reset it later)
 
 In the admin console: **Accounts** → find her row → **Set password**. This immediately signs out
-any of her existing sessions, so she will need to log in again with the new password. There is no
-self-service "forgot password" flow — a password reset is always done by another admin/stakeholder
-account through this screen.
+any of her existing sessions, so she will need to log in again with the new password. The "this is
+a one-time password" checkbox in that dialog is **optional** — leave it unchecked for an ordinary
+password reset that keeps the long-term, no-forced-change policy; check it only if you specifically
+want to force a change at her next login again. There is no self-service "forgot password" flow —
+a password reset is always done by another admin/stakeholder account through this screen.
 
 ### 3.5 Disabling her account after testing ends
 
@@ -391,18 +414,21 @@ should be explained to her up front (see the updated §6.4 note below).
 
 ## 9. Secure handover procedure (do this before telling her anything)
 
-1. In the admin console (sign in as `admin` or the current `stakeholder1` session), go to
-   **Accounts** → `stakeholder1`'s row → **Set password**, and generate a fresh one-time password.
-   (The password used during this round's acceptance testing — §7 — has already been consumed and
-   will not work; this is required, not optional.)
-2. Send the following over **two separate channels** (never the password in the same message as
+Per §3.2, `stakeholder1` is now a long-term account — her password has already been set directly
+(not generated) and does **not** force a change at her first login. There is no "generate a fresh
+one-time password" step needed before handover; the account is ready to hand over as-is.
+
+1. Send the following over **two separate channels** (never the password in the same message as
    the URL/username):
    - **Channel A** (e.g. email, Slack, Teams message — whatever she'd normally expect contact
      from you on): the URL and username, plus the short invite text below.
    - **Channel B** (a different channel — a password manager share, a phone call, a separate
-     encrypted message): just the one-time password, nothing else.
-3. She logs in once with that one-time password, and the system forces her to set her own password
-   before anything else is usable (§3.2) — after that point, only she knows it.
+     encrypted message): just the password, nothing else.
+2. She logs in with that password and goes straight into the admin console — no forced
+   password-change step for this account (§3.2).
+3. If you ever need to revoke and replace her access later, **Accounts** → her row → **Set
+   password** works at any time (§3.4) — check the "one-time password" box there only if you
+   specifically want to force a change at her next login for that particular reset.
 
 ### Forwardable invite text (Channel A — contains no password)
 
@@ -413,9 +439,8 @@ should be explained to her up front (see the updated §6.4 note below).
 > URL: https://comp8715demo-uat-backend.onrender.com/admin/login.html
 > Username: stakeholder1
 >
-> Your one-time password is coming separately, through [state the other channel you're using, e.g.
-> "a text message" / "our password manager"]. The first time you log in, you'll be asked to choose
-> your own password — do that straight away.
+> Your password is coming separately, through [state the other channel you're using, e.g. "a text
+> message" / "our password manager"].
 >
 > A short list of things to try (roughly 10–15 minutes) is attached/linked: [attach or link
 > docs/UAT.md §5, or copy its contents into your own message].

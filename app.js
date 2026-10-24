@@ -1071,33 +1071,121 @@
     }
   }
 
-  function askAI(query) {
+  async function askAI(query) {
     if (!query || !query.trim()) return;
-    var result = window.RD_AI.answer(D, query);
+
+    var localResult = window.RD_AI.answer(D, query);
+    var result = localResult;
+
     var thread = $("#aiThread");
+
     var qDiv = document.createElement("div");
     qDiv.className = "ai-q";
     qDiv.textContent = query;
     thread.appendChild(qDiv);
+
     var card = document.createElement("div");
     card.className = "ai-card";
-    var answerHTML = '<div class="ai-answer">' + esc(result.answer).replace(/\n/g, "<br>") + "</div>";
+    card.innerHTML = '<div class="ai-answer">Thinking...</div>';
+    thread.appendChild(card);
+
+    $("#aiInput").value = "";
+    thread.scrollTop = thread.scrollHeight;
+
+    try {
+      var base =
+        ((window.RD_SITE_CONFIG || {}).apiBaseUrl || "")
+          .replace(/\/$/, "");
+
+      var response = await fetch(base + "/api/ai/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          question: query
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("AI API returned " + response.status);
+      }
+
+      var cloudResult = await response.json();
+
+      if (cloudResult && cloudResult.answer) {
+        var cleanCloudAnswer = cloudResult.answer
+          .replace(/\*\*(.*?)\*\*/g, "$1")
+          .replace(/^\s*\*\s+/gm, "- ")
+          .trim();
+
+        result = Object.assign({}, localResult, {
+          answer: cleanCloudAnswer,
+          matched: cloudResult.matched != null
+            ? cloudResult.matched
+            : localResult.matched
+        });
+      }
+    } catch (error) {
+      console.warn(
+        "Cloud AI unavailable; using local directory answer.",
+        error
+      );
+
+      result = localResult;
+    }
+
+    var answerHTML =
+      '<div class="ai-answer">' +
+      esc(result.answer).replace(/\n/g, "<br>") +
+      "</div>";
+
     if (result.matched) {
-      card.innerHTML = answerHTML +
-        (result.entities.length ? '<div class="ai-row"><h5>Relevant records</h5><div class="chips">' + result.entities.map(linkChip).join("") + "</div></div>" : "") +
-        (result.evidence.length ? '<div class="ai-row"><h5>Evidence from published relationships</h5><ul class="list-compact">' + result.evidence.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul></div>" : "") +
-        (result.viz ? '<div class="ai-row"><button class="btn-mini viz-action">' + esc(result.vizLabel || "Open visualisation") + "</button></div>" : "") +
-        (result.confidence ? '<div class="ai-row">Lowest data confidence used: ' + confidenceBadgeHTML(result.confidence) + "</div>" : "");
+      card.innerHTML =
+        answerHTML +
+        (result.entities.length
+          ? '<div class="ai-row"><h5>Relevant records</h5><div class="chips">' +
+            result.entities.map(linkChip).join("") +
+            "</div></div>"
+          : "") +
+        (result.evidence.length
+          ? '<div class="ai-row"><h5>Evidence from published relationships</h5><ul class="list-compact">' +
+            result.evidence.map(function (e) {
+              return "<li>" + esc(e) + "</li>";
+            }).join("") +
+            "</ul></div>"
+          : "") +
+        (result.viz
+          ? '<div class="ai-row"><button class="btn-mini viz-action">' +
+            esc(result.vizLabel || "Open visualisation") +
+            "</button></div>"
+          : "") +
+        (result.confidence
+          ? '<div class="ai-row">Lowest data confidence used: ' +
+            confidenceBadgeHTML(result.confidence) +
+            "</div>"
+          : "");
     } else {
       card.innerHTML = answerHTML;
     }
-    thread.appendChild(card);
+
     var vizBtn = card.querySelector(".viz-action");
-    if (vizBtn) vizBtn.addEventListener("click", function () { applyVizAction(result.viz); });
-    $$(".entity-chip", card).forEach(function (b) { b.addEventListener("click", function () { openEntity(b.dataset.id); }); });
-    $("#aiInput").value = "";
+
+    if (vizBtn) {
+      vizBtn.addEventListener("click", function () {
+        applyVizAction(result.viz);
+      });
+    }
+
+    $$(".entity-chip", card).forEach(function (b) {
+      b.addEventListener("click", function () {
+        openEntity(b.dataset.id);
+      });
+    });
+
     thread.scrollTop = thread.scrollHeight;
   }
+
   function renderAI() {
     var qs = window.RD_AI.suggestions(D);
     var note = $("#aiNote");

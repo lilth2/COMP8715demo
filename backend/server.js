@@ -10,6 +10,9 @@ const deriveKey = promisify(scrypt);
 const { createDataStore } = require("./server-data");
 const { openUpload, rowsFromMapping } = require("./import/plan-from-file");
 const { makeIdempotencyKey } = require("./feedback-pg");
+const AI = require("../ai-engine");
+const { buildAIData } = require("./ai-data");
+const { geminiConfigured, generateGroundedAnswer } = require("./gemini");
 const ROOT = path.resolve(__dirname, "..");
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_SCREENSHOT_TYPES = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
@@ -243,6 +246,60 @@ function createApp({ account, secureCookies = false, publicOrigin, allowedOrigin
         var publicData = await store.publicData();
         publicData.environment = environment; // non-sensitive; lets the public page show a UAT banner
         return json(res, 200, publicData);
+      }
+      if (url.pathname === "/api/ai/chat" && req.method === "POST") {
+        const value = await body(req);
+        const question =
+          value && typeof value.question === "string"
+            ? value.question.trim()
+            : "";
+
+        if (!question) {
+          return json(res, 400, {
+            message: "A question is required.",
+          });
+        }
+
+        const publicData = await store.publicData();
+
+        // Ground the answer in the currently published directory records.
+        const aiData = buildAIData(publicData);
+
+        const directoryResult = AI.answer(aiData, question);
+
+        // Safe fallback when Gemini is not configured.
+        if (!geminiConfigured()) {
+          return json(res, 200, {
+            answer: directoryResult.answer,
+            source: "directory-engine",
+            matched: directoryResult.matched,
+            fallback: true,
+          });
+        }
+
+        try {
+          const answer = await generateGroundedAnswer(
+            question,
+            directoryResult
+          );
+
+          return json(res, 200, {
+            answer,
+            source: "gemini",
+            model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+            matched: directoryResult.matched,
+            fallback: false,
+          });
+        } catch (error) {
+          console.error("[AI] Gemini request failed:", error.message);
+
+          return json(res, 200, {
+            answer: directoryResult.answer,
+            source: "directory-engine",
+            matched: directoryResult.matched,
+            fallback: true,
+          });
+        }
       }
       if (url.pathname === "/api/admin/dataset" && req.method === "GET") {
         if (!current) return json(res, 401, { message: "Administrator login required." });

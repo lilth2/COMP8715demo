@@ -85,3 +85,30 @@ test("suggestions only mention published records", () => {
   assert.ok(!text.includes("Secret Draft Theme"));
   assert.ok(AI.suggestions(publicD(s)).length > 0);
 });
+
+
+test("regional theme query returns only themes linked to published ACT organisations", () => {
+  const D = publicD(core.defaults());
+  const result = AI.answer(D, "Which research themes are associated with ACT organisations?");
+  assert.equal(result.matched, true);
+
+  const actActors = D.actors.filter(a => a.state === "ACT");
+  const expectedIds = new Set(actActors.flatMap(a => a.themes || []));
+  const expectedNames = D.themeNodes.filter(t => expectedIds.has(t.id)).map(t => t.name);
+
+  for (const name of expectedNames) assert.ok(result.answer.includes(name), name);
+  assert.match(result.answer, /research themes linked to organisations in/i);
+});
+
+test("regional theme query works for Victoria", () => {
+  const D = publicD(core.defaults());
+  const result = AI.answer(D, "Which research themes are associated with organisations in Victoria?");
+  assert.equal(result.matched, true);
+
+  const vicActors = D.actors.filter(a => a.state === "VIC");
+  const expectedIds = new Set(vicActors.flatMap(a => a.themes || []));
+  const expectedNames = D.themeNodes.filter(t => expectedIds.has(t.id)).map(t => t.name);
+
+  for (const name of expectedNames) assert.ok(result.answer.includes(name), name);
+  assert.match(result.answer, /research themes linked to organisations in/i);
+});

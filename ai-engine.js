@@ -10,10 +10,10 @@
   "use strict";
   var STOP = ["the", "and", "for", "with", "that", "this", "what", "which", "where", "how", "are", "is", "of", "in", "to", "a", "an", "on", "by",
     "show", "me", "list", "all", "from", "does", "do", "have", "has", "there", "any", "their", "its", "about", "tell", "give", "find", "who",
-    "into", "between", "active", "research", "organisations", "organisation"];
+    "into", "between", "active", "research", "organisations", "organisation", "themes", "theme", "associated", "association"];
   var FILLER = ["located", "based", "exist", "exists", "existing", "published", "currently", "many", "much", "number", "count", "total", "please", "can", "you",
     "name", "names", "working", "operating", "work", "involved", "involving", "linked", "related", "connected", "connect", "connection", "relationship",
-    "relationships", "records", "record", "entities", "entity", "directory", "data", "now", "are", "was", "were", "been", "being", "path", "link", "relat"];
+    "relationships", "records", "record", "entities", "entity", "directory", "data", "now", "are", "was", "were", "been", "being", "path", "link", "relat", "associated", "association", "capabilities", "capability", "expertise", "themes"];
   var TYPE_PATTERNS = [
     ["crc", /\bcrcs?\b/], ["ncris_facility", /ncris|facilit/], ["university", /universit/], ["research_institute", /institute/],
     ["technology_precinct", /precinct/], ["industry_partner", /industry partner|industrial partner|\bindustry\b/],
@@ -135,6 +135,29 @@
     var ix = index(D);
     var entities = matchEntities(D, q, qWords), themes = matchThemes(D, q, qWords), states = matchStates(D, original, q), types = matchTypes(q);
     var actorsOnly = function (n) { return n.type !== "project_initiative" && n.type !== "research_theme"; };
+
+    // REGIONAL_THEME_QUERY: list themes linked to organisations in a selected state.
+    if (states.length && /theme|themes|capabilit|expertise/.test(q)) {
+      var regionalActors = D.actors.filter(function (a) {
+        return states.some(function (st) { return st.code === a.state; });
+      });
+      var regionalThemeIds = {};
+      regionalActors.forEach(function (a) {
+        (a.themes || []).forEach(function (id) { regionalThemeIds[id] = true; });
+      });
+      var regionalThemes = D.themeNodes.filter(function (t) {
+        return regionalThemeIds[t.id];
+      });
+      var regionalThemeNames = regionalThemes.map(function (t) { return t.name; });
+      return reply({
+        answer: regionalThemeNames.length
+          ? "Published research themes linked to organisations in " + states.map(function (st) { return st.name; }).join(" / ") + ": " + list(regionalThemeNames) + "."
+          : "No published research-theme links were found for organisations in " + states.map(function (st) { return st.name; }).join(" / ") + ".",
+        entities: regionalActors.map(function (a) { return a.id; }).concat(regionalThemes.map(function (t) { return t.id; })).slice(0, 12),
+        viz: { view: "directory" },
+        vizLabel: "Open the Directory"
+      });
+    }
 
     var leftover = unexplained(D, qWords, entities, themes, states, types);
     var tooVague = leftover.length >= 2;

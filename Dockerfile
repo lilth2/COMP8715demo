@@ -6,4 +6,4 @@ COPY --chown=node:node backend ./backend
 RUN mkdir -p /app/backend/.private && chown node:node /app/backend/.private
 USER node
 EXPOSE 8765
-CMD ["node", "backend/server.js"]
+CMD ["sh", "-c", "node backend/setup-admin.js && node backend/server.js"]
